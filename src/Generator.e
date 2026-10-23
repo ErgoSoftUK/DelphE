@@ -61,6 +61,31 @@ PROC putPair(fh, text, n)
   putNum(fh, n)
 ENDPROC
 
+-> "One|Two" -> ['One', 'Two', NIL]
+PROC putItems(fh, s)
+  DEF i, start, len, seg
+  IF s = NIL THEN s := ''
+  len := StrLen(s)
+  start := 0
+  put(fh, '[')
+  FOR i := 0 TO len
+    IF (i = len) OR (s[i] = "|")
+      seg := String(i - start + 1)
+      IF i > start THEN MidStr(seg, s, start, i - start)
+      quoted(fh, seg)
+      put(fh, ', ')
+      DisposeLink(seg)
+      start := i + 1
+    ENDIF
+  ENDFOR
+  put(fh, 'NIL]')
+ENDPROC
+
+-> A number property, or its default
+PROC numOr(c: PTR TO component, bit, v, dflt)
+  IF c.propFlags AND bit THEN RETURN v
+ENDPROC dflt
+
 -> Optional properties of a leaf widget as tags, each starting with ", "
 PROC emitLeafExtras(fh, c: PTR TO component)
   DEF flags
@@ -177,6 +202,33 @@ PROC leafExpr(fh, c: PTR TO component)
         emitLeafExtras(fh, c)
         put(fh, ', End')
       ENDIF
+    CASE CK_CYCLE
+      put(fh, 'CycleObject, MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, ')
+      putItems(fh, c.title)
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
+    CASE CK_RADIO
+      put(fh, 'RadioObject, MUIA_Radio_Entries, ')
+      putItems(fh, c.title)
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
+    CASE CK_SLIDER
+      putPair(fh, 'SliderObject, MUIA_Numeric_Min, ', numOr(c, PF_MIN, c.minV, 0))
+      putPair(fh, ', MUIA_Numeric_Max, ', numOr(c, PF_MAX, c.maxV, 100))
+      putPair(fh, ', MUIA_Numeric_Value, ', numOr(c, PF_VALUE, c.value, 0))
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
+    CASE CK_GAUGE
+      putPair(fh, 'GaugeObject, GaugeFrame, MUIA_Gauge_Horiz, MUI_TRUE, MUIA_Gauge_Max, ', numOr(c, PF_MAX, c.maxV, 100))
+      putPair(fh, ', MUIA_Gauge_Current, ', numOr(c, PF_VALUE, c.value, 0))
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
+    CASE CK_LIST
+      put(fh, 'ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, ')
+      putItems(fh, c.title)
+      put(fh, ', End')
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
   ENDSELECT
 ENDPROC
 
@@ -272,6 +324,14 @@ PROC emitConnect(fh, c: PTR TO component)
           put(fh, ', [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
         CASE CK_CHECK
           put(fh, ', [MUIM_Notify, MUIA_Selected, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+        CASE CK_CYCLE
+          put(fh, ', [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+        CASE CK_RADIO
+          put(fh, ', [MUIM_Notify, MUIA_Radio_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+        CASE CK_SLIDER
+          put(fh, ', [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+        CASE CK_LIST
+          put(fh, ', [MUIM_Notify, MUIA_Listview_DoubleClick, MUI_TRUE, app, 2, MUIM_Application_ReturnID, ')
       ENDSELECT
       putNum(fh, evCounter)
       put(fh, '])\n')

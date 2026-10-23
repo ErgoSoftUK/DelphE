@@ -19,6 +19,33 @@ PROC titleOf(c: PTR TO component)
   IF c.title THEN RETURN c.title
 ENDPROC ''
 
+-> "One|Two|Three" -> a NIL-terminated list of strings, as the Cycle, Radio and
+-> List classes want it (the strings are not freed: MUI keeps the pointers)
+PROC splitItems(s)
+  DEF l, n, i, start, item, len
+  len := StrLen(s)
+  n := 1
+  FOR i := 0 TO len - 1
+    IF s[i] = "|" THEN n++
+  ENDFOR
+  l := List(n + 1)
+  start := 0
+  FOR i := 0 TO len
+    IF (i = len) OR (s[i] = "|")
+      item := String(i - start + 1)
+      IF i > start THEN MidStr(item, s, start, i - start)
+      ListAdd(l, [item], 1)
+      start := i + 1
+    ENDIF
+  ENDFOR
+  ListAdd(l, [NIL], 1)
+ENDPROC l
+
+-> Optional numbers with a default
+PROC numberOr(c: PTR TO component, bit, v, dflt)
+  IF c.propFlags AND bit THEN RETURN v
+ENDPROC dflt
+
 -> Adds the tags for the component's optional properties; returns the list
 PROC addExtras(tags, c: PTR TO component)
   DEF flags
@@ -104,6 +131,29 @@ PROC buildObject(c: PTR TO component)
          MUIA_Selected, FALSE,
          MUIA_Background, MUII_ButtonBack,
          MUIA_ShowSelState, FALSE])
+    CASE CK_CYCLE
+      class := MUIC_Cycle
+      tags := ListAdd(tags, [MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, splitItems(t)])
+    CASE CK_RADIO
+      class := MUIC_Radio
+      tags := ListAdd(tags, [MUIA_Radio_Entries, splitItems(t)])
+    CASE CK_SLIDER
+      class := MUIC_Slider
+      tags := ListAdd(tags,
+        [MUIA_Numeric_Min, numberOr(c, PF_MIN, c.minV, 0),
+         MUIA_Numeric_Max, numberOr(c, PF_MAX, c.maxV, 100),
+         MUIA_Numeric_Value, numberOr(c, PF_VALUE, c.value, 0)])
+    CASE CK_GAUGE
+      class := MUIC_Gauge
+      tags := ListAdd(tags,
+        [MUIA_Frame, MUIV_Frame_Gauge, MUIA_Gauge_Horiz, MUI_TRUE,
+         MUIA_Gauge_Max, numberOr(c, PF_MAX, c.maxV, 100),
+         MUIA_Gauge_Current, numberOr(c, PF_VALUE, c.value, 0)])
+    CASE CK_LIST
+      class := MUIC_Listview
+      tags := ListAdd(tags, [MUIA_Listview_List,
+        Mui_NewObjectA(MUIC_List, [MUIA_Frame, MUIV_Frame_InputList,
+                                   MUIA_List_SourceArray, splitItems(t), TAG_DONE, 0])])
   ENDSELECT
 
   IF class = NIL

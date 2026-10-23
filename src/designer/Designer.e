@@ -25,7 +25,7 @@ DEF app, win, tree, strName, strTitle, txtKind, txtStatus,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     pages, pageTitles, editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
     logEditor, logSlider, btnCompile, btnRun,
-    strWeight, strFixW, strFixH, strHint, chkDisabled, chkFrame, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, numBuf,
     menu, miNew, miOpen, miSave, miSaveAs, miQuit, miPreview, miGenerate, miCompile, miRun,
     dirty, titleBuf1, titleBuf2, titleFlip,
     cycKind, btnAdd, btnDelete, btnUp, btnDown, btnGenerate, kindNames,
@@ -135,25 +135,38 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge
   w := 0
   fx := 0
   fy := 0
+  mn := 0
+  mx := 0
+  vl := 0
   usable := FALSE
   isGroup := FALSE
+  isSlider := FALSE
+  isGauge := FALSE
   flags := 0
   IF c
     flags := c.propFlags
     w := c.weight
     fx := c.fixW
     fy := c.fixH
+    mn := c.minV
+    mx := c.maxV
+    vl := c.value
     IF c.kind <> CK_WINDOW THEN usable := TRUE
     IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
+    IF c.kind = CK_SLIDER THEN isSlider := TRUE
+    IF c.kind = CK_GAUGE THEN isGauge := TRUE
   ENDIF
 
   showNumber(strWeight, flags, PF_WEIGHT, w)
   showNumber(strFixW, flags, PF_FIXW, fx)
   showNumber(strFixH, flags, PF_FIXH, fy)
+  showNumber(strMin, flags, PF_MIN, mn)
+  showNumber(strMax, flags, PF_MAX, mx)
+  showNumber(strValue, flags, PF_VALUE, vl)
   IF (c <> NIL) AND (flags AND PF_HINT)
     set(strHint, MUIA_String_Contents, c.hint)
   ELSE
@@ -168,6 +181,10 @@ PROC showProps(c: PTR TO component)
   setEnabled(strHint, usable)
   setEnabled(chkDisabled, usable)
   setEnabled(chkFrame, isGroup)
+  -> a gauge has no minimum; sliders and gauges both have a maximum and a value
+  setEnabled(strMin, isSlider)
+  setEnabled(strMax, isSlider OR isGauge)
+  setEnabled(strValue, isSlider OR isGauge)
 ENDPROC
 
 PROC setEnabled(gadget, enabled)
@@ -178,9 +195,14 @@ PROC setEnabled(gadget, enabled)
   ENDIF
 ENDPROC
 
+-> a whole number, optionally negative
 PROC isNumber(s)
-  DEF i
-  FOR i := 0 TO StrLen(s) - 1
+  DEF i, first
+  IF StrLen(s) = 0 THEN RETURN FALSE
+  first := 0
+  IF s[0] = "-" THEN first := 1
+  IF first >= StrLen(s) THEN RETURN FALSE
+  FOR i := first TO StrLen(s) - 1
     IF (s[i] < "0") OR (s[i] > "9") THEN RETURN FALSE
   ENDFOR
 ENDPROC TRUE
@@ -190,47 +212,69 @@ ENDPROC TRUE
 PROC readNumber(gadget, bit)
   DEF p, v
   get(gadget, MUIA_String_Contents, {p})
-  IF StrLen(p) = 0 THEN RETURN 0, 0
-  IF isNumber(p) = FALSE THEN RETURN 0, -1
+  IF StrLen(p) = 0 THEN RETURN 0, 0, TRUE
+  IF isNumber(p) = FALSE THEN RETURN 0, 0, FALSE
   v := Val(p)
-ENDPROC bit, v
+ENDPROC bit, v, TRUE
 
 -> Applies the property gadgets to the selected component
 PROC commitProps()
-  DEF c: PTR TO component, nf, nw, nfx, nfy, p, sel, bit, v, h: PTR TO CHAR, i
+  DEF c: PTR TO component, nf, nw, nfx, nfy, nmn, nmx, nvl
+  DEF p, sel, bit, v, ok, h: PTR TO CHAR, i
   c := selected
   IF c = NIL THEN RETURN
   IF c.kind = CK_WINDOW THEN RETURN
 
   nf := 0
-  nw := 0
-  nfx := 0
-  nfy := 0
 
-  bit, v := readNumber(strWeight, PF_WEIGHT)
-  IF v = -1
+  bit, v, ok := readNumber(strWeight, PF_WEIGHT)
+  IF ok = FALSE
     status('Weight must be a whole number')
     showProps(c)
     RETURN
   ENDIF
   nf := nf OR bit
   nw := v
-  bit, v := readNumber(strFixW, PF_FIXW)
-  IF v = -1
+  bit, v, ok := readNumber(strFixW, PF_FIXW)
+  IF ok = FALSE
     status('Fixed width must be a whole number')
     showProps(c)
     RETURN
   ENDIF
   nf := nf OR bit
   nfx := v
-  bit, v := readNumber(strFixH, PF_FIXH)
-  IF v = -1
+  bit, v, ok := readNumber(strFixH, PF_FIXH)
+  IF ok = FALSE
     status('Fixed height must be a whole number')
     showProps(c)
     RETURN
   ENDIF
   nf := nf OR bit
   nfy := v
+  bit, v, ok := readNumber(strMin, PF_MIN)
+  IF ok = FALSE
+    status('Minimum must be a whole number')
+    showProps(c)
+    RETURN
+  ENDIF
+  nf := nf OR bit
+  nmn := v
+  bit, v, ok := readNumber(strMax, PF_MAX)
+  IF ok = FALSE
+    status('Maximum must be a whole number')
+    showProps(c)
+    RETURN
+  ENDIF
+  nf := nf OR bit
+  nmx := v
+  bit, v, ok := readNumber(strValue, PF_VALUE)
+  IF ok = FALSE
+    status('Value must be a whole number')
+    showProps(c)
+    RETURN
+  ENDIF
+  nf := nf OR bit
+  nvl := v
 
   get(chkDisabled, MUIA_Selected, {sel})
   IF sel THEN nf := nf OR PF_DISABLED
@@ -249,9 +293,11 @@ PROC commitProps()
 
   IF nf = c.propFlags
     IF (nw = c.weight) AND (nfx = c.fixW) AND (nfy = c.fixH)
-      IF (nf AND PF_HINT) = 0 THEN RETURN
-      IF StrLen(h) = StrLen(c.hint)
-        IF StrCmp(h, c.hint, ALL) THEN RETURN
+      IF (nmn = c.minV) AND (nmx = c.maxV) AND (nvl = c.value)
+        IF (nf AND PF_HINT) = 0 THEN RETURN
+        IF StrLen(h) = StrLen(c.hint)
+          IF StrCmp(h, c.hint, ALL) THEN RETURN
+        ENDIF
       ENDIF
     ENDIF
   ENDIF
@@ -260,6 +306,9 @@ PROC commitProps()
   c.weight := nw
   c.fixW := nfx
   c.fixH := nfy
+  c.minV := nmn
+  c.maxV := nmx
+  c.value := nvl
   c.hint := h
   markDirty()
   status('Properties updated')
@@ -837,8 +886,10 @@ PROC doAdd()
   ENDIF
 
   c := newComponent(kind,
-         uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk'], idx)),
-         ListItem([NIL, NIL, 'Button', 'Label', '', ''], idx))
+         uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
+                              'cyc', 'rad', 'sld', 'gau', 'lst'], idx)),
+         ListItem([NIL, NIL, 'Button', 'Label', '', '',
+                   'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three'], idx))
   target.addChild(c)
   rebuildTree(c)
   markDirty()
@@ -901,7 +952,8 @@ PROC main() HANDLE
 
   -> No construct/destruct hooks: the string hook would copy our component
   -> pointer as if it were a string. The component is stored as-is in tn_User.
-  kindNames := ['VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check', NIL]
+  kindNames := ['VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
+                'Cycle', 'Radio', 'Slider', 'Gauge', 'List', NIL]
 
   tree := ListtreeObject,
     InputListFrame,
@@ -991,7 +1043,7 @@ PROC main() HANDLE
             Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
             Child, Label2('Name:'),
             Child, strName := StringObject, StringFrame, MUIA_String_Contents, '', End,
-            Child, Label2('Title:'),
+            Child, Label2('Title/items:'),
             Child, strTitle := StringObject, StringFrame, MUIA_String_Contents, '', End,
             -> acts as a label: right-aligned, and no weight so it can't claim the width
             -> that belongs to the gadget column
@@ -1012,6 +1064,12 @@ PROC main() HANDLE
             Child, strFixW := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Fixed height:'),
             Child, strFixH := StringObject, StringFrame, MUIA_String_Contents, '', End,
+            Child, Label2('Minimum:'),
+            Child, strMin := StringObject, StringFrame, MUIA_String_Contents, '', End,
+            Child, Label2('Maximum:'),
+            Child, strMax := StringObject, StringFrame, MUIA_String_Contents, '', End,
+            Child, Label2('Value:'),
+            Child, strValue := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Hint:'),
             Child, strHint := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Disabled:'),
@@ -1078,6 +1136,12 @@ PROC main() HANDLE
   doMethodA(strFixW, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(strFixH, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(strMin, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(strMax, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(strValue, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(strHint, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])

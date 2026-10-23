@@ -50,6 +50,9 @@ PROC writeForm(fh, c: PTR TO component, depth)
   IF c.propFlags AND PF_WEIGHT THEN putProp(fh, ' :weight=', c.weight)
   IF c.propFlags AND PF_FIXW THEN putProp(fh, ' :fixw=', c.fixW)
   IF c.propFlags AND PF_FIXH THEN putProp(fh, ' :fixh=', c.fixH)
+  IF c.propFlags AND PF_MIN THEN putProp(fh, ' :min=', c.minV)
+  IF c.propFlags AND PF_MAX THEN putProp(fh, ' :max=', c.maxV)
+  IF c.propFlags AND PF_VALUE THEN putProp(fh, ' :value=', c.value)
   IF c.propFlags AND PF_DISABLED THEN put(fh, ' :disabled')
   IF c.propFlags AND PF_FRAME THEN put(fh, ' :frame')
   IF c.propFlags AND PF_HINT
@@ -151,6 +154,15 @@ PROC applyProp(c: PTR TO component, tok)
   ELSEIF tokIs(tok, 'fixh')
     c.fixH := tokNumber(tok)
     c.propFlags := c.propFlags OR PF_FIXH
+  ELSEIF tokIs(tok, 'min')
+    c.minV := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_MIN
+  ELSEIF tokIs(tok, 'max')
+    c.maxV := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_MAX
+  ELSEIF tokIs(tok, 'value')
+    c.value := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_VALUE
   ELSEIF tokIs(tok, 'disabled')
     c.propFlags := c.propFlags OR PF_DISABLED
   ELSEIF tokIs(tok, 'frame')

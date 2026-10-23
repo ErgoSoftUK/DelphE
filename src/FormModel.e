@@ -8,10 +8,12 @@
 OPT MODULE
 OPT EXPORT
 
-ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK
+ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
+     CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
-CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32
+CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
+      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256
 
 OBJECT component
   kind
@@ -27,6 +29,9 @@ OBJECT component
   fixW                                -> MUIA_FixWidth (PF_FIXW)
   fixH                                -> MUIA_FixHeight (PF_FIXH)
   hint                                -> MUIA_ShortHelp (PF_HINT)
+  minV                                -> slider minimum (PF_MIN)
+  maxV                                -> slider/gauge maximum (PF_MAX)
+  value                               -> slider/gauge value (PF_VALUE)
   uiNode                              -> designer's tree node for this component
 ENDOBJECT
 
@@ -46,12 +51,13 @@ ENDPROC
 
 PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP)
 
-PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check'], kind)
+PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
+                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_CHECK
+  FOR k := CK_WINDOW TO CK_LIST
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -124,6 +130,14 @@ PROC eventName(kind)
       RETURN 'OnEnter'
     CASE CK_CHECK
       RETURN 'OnChange'
+    CASE CK_CYCLE
+      RETURN 'OnChange'
+    CASE CK_RADIO
+      RETURN 'OnChange'
+    CASE CK_SLIDER
+      RETURN 'OnChange'
+    CASE CK_LIST
+      RETURN 'OnDoubleClick'
   ENDSELECT
 ENDPROC NIL
 
@@ -136,5 +150,13 @@ PROC eventSuffix(kind)
       RETURN 'Enter'
     CASE CK_CHECK
       RETURN 'Change'
+    CASE CK_CYCLE
+      RETURN 'Change'
+    CASE CK_RADIO
+      RETURN 'Change'
+    CASE CK_SLIDER
+      RETURN 'Change'
+    CASE CK_LIST
+      RETURN 'DoubleClick'
   ENDSELECT
 ENDPROC NIL
