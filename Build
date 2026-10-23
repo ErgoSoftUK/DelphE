@@ -1,0 +1,18 @@
+; Build the DelphE modules and the generator smoke test.
+; Run from the DelphE drawer:  execute Build
+echo "Building.." > build.out
+cd src
+ec FormModel >> /build.out
+ec MForm >> /build.out
+ec Generator >> /build.out
+ec GenTest >> /build.out
+GenTest > /gentest.out
+ec MainForm >> /build.out
+ec FormHost >> /build.out
+ec Util >> /build.out
+ec Builder >> /build.out
+ec Preview >> /build.out
+ec mcc/Listtree_mcc >> /build.out
+ec designer/Designer >> /build.out
+cd /
+type build.out

@@ -1,0 +1,28 @@
+; Build watcher. Start once from the DelphE drawer:   run execute Watch
+;
+;   build.trigger  create this file to start a build
+;   build.done     written when the build has finished (read build.out then)
+;   build.stop     create this file to make the watcher exit
+;
+; Each run does one check and then starts a fresh copy of itself, so there is
+; no looping (Skip BACK misbehaved after running Build). Progress is logged
+; to watch.log.
+;
+failat 21
+if exists build.stop
+  delete build.stop
+  echo "watcher stopped" >> watch.log
+else
+  if exists build.trigger
+    echo "trigger seen" >> watch.log
+    delete build.trigger
+    if exists build.done
+      delete build.done
+    endif
+    execute Build
+    echo "done" > build.done
+    echo "build finished" >> watch.log
+  endif
+  wait 1 sec
+  run >NIL: <NIL: execute Watch
+endif

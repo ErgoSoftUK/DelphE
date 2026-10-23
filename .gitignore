@@ -1,0 +1,12 @@
+*.m
+src/GenTest
+src/FormHost
+build.out
+build.trigger
+build.done
+build.stop
+gentest.out
+src/Preview
+src/designer/Designer
+src/Designer
+src/mcc/*.m

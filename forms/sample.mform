@@ -1,0 +1,12 @@
+Window MainForm "Hello DelphE"
+  VGroup root
+    Text lblName "Name:"
+    String edtName ""
+    HGroup row
+      Button btnOk "Test1234"
+      Button btnCancel "Cancel"
+      VGroup vgrp1
+        Text lbl1 "Label"
+        Button btn1 "Button"
+        String edt1 ""
+        Button btn2 "Button"
