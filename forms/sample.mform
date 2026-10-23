@@ -7,6 +7,6 @@ Window MainForm "Hello DelphE"
       Button btnCancel "Cancel" :weight=0 :disabled
     Cycle cyc1 "One|Two|Three"
     Radio rad1 "One|Two|Three"
-    Slider sld1 ""
-    Gauge gau1 ""
+    Slider sld1 "" :value=25
+    Gauge gau1 "test" :value=50
     List lst1 "One|Two|Three"

@@ -18,13 +18,23 @@ OBJECT tMainForm
   edtName
   btnOk
   btnCancel
+  cyc1
+  rad1
+  sld1
+  gau1
+  lst1
 ENDOBJECT
 
 PROC create() OF tMainForm
   self.lblName := TextObject, TextFrame, MUIA_Text_Contents, 'Name:', End
   self.edtName := StringObject, StringFrame, MUIA_String_Contents, '', End
   self.btnOk := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Test1234', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_ShortHelp, 'Test', End
-  self.btnCancel := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Disabled, MUI_TRUE, End
+  self.btnCancel := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Weight, 0, MUIA_Disabled, MUI_TRUE, End
+  self.cyc1 := CycleObject, MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, ['One', 'Two', 'Three', NIL], End
+  self.rad1 := RadioObject, MUIA_Radio_Entries, ['One', 'Two', 'Three', NIL], End
+  self.sld1 := SliderObject, MUIA_Numeric_Min, 0, MUIA_Numeric_Max, 100, MUIA_Numeric_Value, 0, End
+  self.gau1 := GaugeObject, GaugeFrame, MUIA_Gauge_Horiz, MUI_TRUE, MUIA_Gauge_Max, 100, MUIA_Gauge_Current, 0, End
+  self.lst1 := ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, ['One', 'Two', 'Three', NIL], End, End
   self.handle := WindowObject,
     MUIA_Window_Title, 'Hello DelphE',
     MUIA_Window_ID, "MAIN",
@@ -36,6 +46,11 @@ PROC create() OF tMainForm
           Child, self.btnOk,
           Child, self.btnCancel,
         End,
+        Child, self.cyc1,
+        Child, self.rad1,
+        Child, self.sld1,
+        Child, self.gau1,
+        Child, self.lst1,
       End,
   End
 ENDPROC

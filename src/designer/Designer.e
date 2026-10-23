@@ -14,13 +14,21 @@ OPT LARGE
 MODULE 'libraries/gadtools', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
        '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util',
-       '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc'
+       '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_ADD, ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
-     ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS
+     ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
+     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE
 
-DEF app, win, tree, strName, strTitle, txtKind, txtStatus,
+-> palette buttons send ID_PALETTE + the index of their component kind
+CONST ID_PALETTE = 100
+
+DEF mItems[48]: ARRAY OF LONG
+
+DEF winInsp, winForm, winCode, liveHolder, liveObj, liveStale, actionsBar, paletteBar,
+    inspPages, inspTitles, actionsDef, paletteDef,
+    app, win, tree, strName, strTitle, txtKind, txtStatus,
     btnSave, btnPreview, previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     pages, pageTitles, editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
@@ -560,8 +568,7 @@ PROC gotoHandler(c: PTR TO component)
   FOR i := 0 TO p - 1
     IF buf[i] = 10 THEN line++
   ENDFOR
-  set(pages, MUIA_Group_ActivePage, 1)
-  set(win, MUIA_Window_ActiveObject, editor)
+  showCode()
   set(editor, MUIA_TextEditor_CursorY, line + 1)
 ENDPROC
 
@@ -585,6 +592,7 @@ PROC updateTitle()
 ENDPROC
 
 PROC markDirty()
+  liveStale := TRUE
   IF dirty = FALSE
     dirty := TRUE
     updateTitle()
@@ -619,6 +627,7 @@ PROC openForm(path)
   filename := path
   dirty := FALSE
   rebuildTree(form)
+  refreshLive()
   loadCode()
   updateTitle()
   status('Form opened')
@@ -774,8 +783,7 @@ PROC compileCode()
   p := InStr(clean, 'LINE ')
   IF p <> -1
     line := Val(clean + p + 5)
-    set(pages, MUIA_Group_ActivePage, 1)
-    set(win, MUIA_Window_ActiveObject, editor)
+    showCode()
     set(editor, MUIA_TextEditor_CursorY, line - 1)
     msg := String(40)
     StringF(msg, 'Compile error at line \d', line)
@@ -863,11 +871,10 @@ PROC uniqueName(prefix)
   UNTIL nameTaken(form, s, NIL) = FALSE
 ENDPROC s
 
-PROC doAdd()
-  DEF idx, kind, target: PTR TO component, c: PTR TO component
+PROC doAdd(idx)
+  DEF kind, target: PTR TO component, c: PTR TO component
 
   commitEdits()
-  get(cycKind, MUIA_Cycle_Active, {idx})
   kind := idx + 1          -> the cycle lists VGroup..Check, which follow CK_WINDOW
 
   target := selected
@@ -930,11 +937,138 @@ ENDPROC
 
 /*** main ***/
 
+
+PROC showCode()
+  set(winCode, MUIA_Window_Open, MUI_TRUE)
+  set(winCode, MUIA_Window_Activate, MUI_TRUE)
+  set(winCode, MUIA_Window_ActiveObject, editor)
+ENDPROC
+
+PROC showWin(w)
+  set(w, MUIA_Window_Open, MUI_TRUE)
+  set(w, MUIA_Window_Activate, MUI_TRUE)
+ENDPROC
+
+/*** live view ***/
+
+-> Rebuilds the form's real MUI objects inside the Form window
+PROC refreshLive()
+  DEF obj
+  liveStale := FALSE
+  doMethodA(liveHolder, [MUIM_Group_InitChange])
+  IF liveObj
+    doMethodA(liveHolder, [OM_REMMEMBER, liveObj])
+    Mui_DisposeObject(liveObj)
+    liveObj := NIL
+  ENDIF
+  IF form.firstChild
+    obj := buildObject(form.firstChild)
+    IF obj
+      doMethodA(liveHolder, [OM_ADDMEMBER, obj])
+      liveObj := obj
+    ENDIF
+  ENDIF
+  doMethodA(liveHolder, [MUIM_Group_ExitChange])
+ENDPROC
+
+/*** menus and toolbars ***/
+
+-> The path of a toolbar image, wherever the program is run from
+PROC imagePath(name)
+  DEF prefixes: PTR TO LONG, i, s
+  prefixes := ['PROGDIR://Images/', 'PROGDIR:Images/', 'Images/', '/Images/']
+  FOR i := 0 TO 3
+    s := String(StrLen(prefixes[i]) + StrLen(name) + 2)
+    StrCopy(s, prefixes[i], ALL)
+    StrAdd(s, name, ALL)
+    IF canOpen(s) THEN RETURN s
+  ENDFOR
+ENDPROC s
+
+-> Every window gets its own copy of the menus, because an Amiga menu bar
+-> belongs to the active window. The items are remembered in mItems (12 per
+-> window) so hookMenus() can connect them once the application exists.
+PROC makeMenu(slot)
+  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, base
+  strip := MenustripObject,
+    MUIA_Family_Child, MenuObjectT('Project'),
+      MUIA_Family_Child, m1 := MenuitemObject,
+        MUIA_Menuitem_Title, 'New...', MUIA_Menuitem_Shortcut, 'N', End,
+      MUIA_Family_Child, m2 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Open...', MUIA_Menuitem_Shortcut, 'O', End,
+      MUIA_Family_Child, m3 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+      MUIA_Family_Child, m4 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, m5 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
+    End,
+    MUIA_Family_Child, MenuObjectT('Build'),
+      MUIA_Family_Child, m6 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, m7 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
+      MUIA_Family_Child, m8 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
+      MUIA_Family_Child, m9 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
+    End,
+    MUIA_Family_Child, MenuObjectT('Window'),
+      MUIA_Family_Child, m10 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
+      MUIA_Family_Child, m11 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
+      MUIA_Family_Child, m12 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
+    End,
+  End
+  IF strip = NIL THEN Raise('Failed to create the menus')
+  base := slot * 12
+  mItems[base] := m1
+  mItems[base + 1] := m2
+  mItems[base + 2] := m3
+  mItems[base + 3] := m4
+  mItems[base + 4] := m5
+  mItems[base + 5] := m6
+  mItems[base + 6] := m7
+  mItems[base + 7] := m8
+  mItems[base + 8] := m9
+  mItems[base + 9] := m10
+  mItems[base + 10] := m11
+  mItems[base + 11] := m12
+ENDPROC strip
+
+PROC hookMenus(windows)
+  DEF ids, slot, k
+  ids := [ID_NEW, ID_OPEN, ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
+          ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
+          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE]
+  FOR slot := 0 TO windows - 1
+    FOR k := 0 TO 11
+      hookMenu(mItems[slot * 12 + k], ListItem(ids, k))
+    ENDFOR
+  ENDFOR
+ENDPROC
+
+-> A toolbar button sends the given return ID to the main loop when pressed
+PROC hookButton(bar, idx, id)
+  doMethodA(bar, [MUIM_Toolbar_Notify, idx, MUIV_Toolbar_Notify_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, id])
+ENDPROC
+
+/*** main ***/
+
 PROC main() HANDLE
-  DEF sigs = 0, id, running
+  DEF sigs = 0, id, running, i, ids
 
   app := NIL
   previewWin := NIL
+  liveObj := NIL
+  liveStale := FALSE
   dirty := FALSE
   titleFlip := FALSE
   numBuf := String(16)
@@ -952,14 +1086,11 @@ PROC main() HANDLE
 
   -> No construct/destruct hooks: the string hook would copy our component
   -> pointer as if it were a string. The component is stored as-is in tn_User.
-  kindNames := ['VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
-                'Cycle', 'Radio', 'Slider', 'Gauge', 'List', NIL]
-
   tree := ListtreeObject,
     InputListFrame,
   End
 
-  pageTitles := ['Form', 'Code', NIL]
+  inspTitles := ['Properties', 'Events', NIL]
 
   slider := ScrollbarObject,
     MUIA_Group_Horiz, FALSE,
@@ -985,79 +1116,86 @@ PROC main() HANDLE
   IF logEditor = NIL THEN Raise('Could not create the output pane')
   set(logEditor, MUIA_TextEditor_FixedFont, MUI_TRUE)
 
-  menu := MenustripObject,
-    MUIA_Family_Child, MenuObjectT('Project'),
-      MUIA_Family_Child, miNew := MenuitemObject,
-        MUIA_Menuitem_Title, 'New...', MUIA_Menuitem_Shortcut, 'N', End,
-      MUIA_Family_Child, miOpen := MenuitemObject,
-        MUIA_Menuitem_Title, 'Open...', MUIA_Menuitem_Shortcut, 'O', End,
-      MUIA_Family_Child, miSave := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
-      MUIA_Family_Child, miSaveAs := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, miQuit := MenuitemObject,
-        MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
-    End,
-    MUIA_Family_Child, MenuObjectT('Build'),
-      MUIA_Family_Child, miPreview := MenuitemObject,
-        MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, miGenerate := MenuitemObject,
-        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
-      MUIA_Family_Child, miCompile := MenuitemObject,
-        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
-      MUIA_Family_Child, miRun := MenuitemObject,
-        MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
-    End,
+  -> toolbar: the buttons are numbered in order, spaces included
+  actionsDef := buildBank([
+    Toolbar_HintButton(0, 'New form', NIL),
+    Toolbar_HintButton(0, 'Open form', NIL),
+    Toolbar_HintButton(0, 'Save form', NIL),
+    Toolbar_Space,
+    Toolbar_HintButton(0, 'Preview the form in its own window', NIL),
+    Toolbar_HintButton(0, 'Generate code', NIL),
+    Toolbar_Space,
+    Toolbar_HintButton(0, 'Compile', NIL),
+    Toolbar_HintButton(0, 'Compile and run', NIL),
+    Toolbar_End])
+  actionsBar := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('actions.iff'),
+    MUIA_Toolbar_Description, actionsDef,
+    MUIA_ShortHelp, TRUE,
   End
-  IF menu = NIL THEN Raise('Failed to create the menus')
+  IF actionsBar = NIL THEN Raise('Could not create the toolbar (is Toolbar.mcc installed?)')
 
+  paletteDef := buildBank([
+    Toolbar_HintButton(0, 'Add a vertical group', NIL),
+    Toolbar_HintButton(0, 'Add a horizontal group', NIL),
+    Toolbar_HintButton(0, 'Add a button', NIL),
+    Toolbar_HintButton(0, 'Add a text label', NIL),
+    Toolbar_HintButton(0, 'Add a string gadget', NIL),
+    Toolbar_HintButton(0, 'Add a checkmark', NIL),
+    Toolbar_HintButton(0, 'Add a cycle gadget', NIL),
+    Toolbar_HintButton(0, 'Add radio buttons', NIL),
+    Toolbar_HintButton(0, 'Add a slider', NIL),
+    Toolbar_HintButton(0, 'Add a gauge', NIL),
+    Toolbar_HintButton(0, 'Add a list', NIL),
+    Toolbar_End])
+  paletteBar := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('components.iff'),
+    MUIA_Toolbar_Description, paletteDef,
+    MUIA_ShortHelp, TRUE,
+  End
+  IF paletteBar = NIL THEN Raise('Could not create the component palette')
+
+  -> main window: menus, toolbar, component palette, status line
   win := WindowObject,
     MUIA_Window_Title, 'DelphE Designer',
     MUIA_Window_ID, "DSGN",
-    MUIA_Window_Menustrip, menu,
+    MUIA_Window_Menustrip, makeMenu(0),
+    MUIA_Window_LeftEdge, 0,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(0),
+    MUIA_Window_Width, MUIV_Window_Width_Screen(100),
     WindowContents, VGroup,
-      Child, pages := RegisterGroup(pageTitles),
-        MUIA_Register_Frame, MUI_TRUE,
-      Child, VGroup,
       Child, HGroup,
-        Child, cycKind := Cycle(kindNames),
-        Child, btnAdd := SimpleButton('Add'),
-        Child, btnDelete := SimpleButton('Delete'),
-        Child, btnUp := SimpleButton('Move Up'),
-        Child, btnDown := SimpleButton('Move Down'),
-      End,
-      Child, HGroup,
-        Child, ListviewObject,
-          MUIA_Weight, 40,
-          MUIA_Listview_List, tree,
+        Child, actionsBar,
+        Child, VGroup, GroupFrameT('Components'),
+          Child, paletteBar,
         End,
+        Child, HSpace(0),
+      End,
+      Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
+    End,
+  End
+
+  -> Object Inspector: properties and events of the selected component
+  winInsp := WindowObject,
+    MUIA_Window_Title, 'Object Inspector',
+    MUIA_Window_ID, "DINS",
+    MUIA_Window_Menustrip, makeMenu(1),
+    MUIA_Window_LeftEdge, 0,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
+    MUIA_Window_Width, 300,
+    MUIA_Window_Height, 400,
+    WindowContents, VGroup,
+      Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
+      Child, inspPages := RegisterGroup(inspTitles),
+        MUIA_Register_Frame, MUI_TRUE,
         Child, VGroup,
-          MUIA_Weight, 60,
-          GroupFrameT('Properties'),
           Child, ColGroup(2),
-            Child, Label2('Kind:'),
-            Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
             Child, Label2('Name:'),
             Child, strName := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Title/items:'),
             Child, strTitle := StringObject, StringFrame, MUIA_String_Contents, '', End,
-            -> acts as a label: right-aligned, and no weight so it can't claim the width
-            -> that belongs to the gadget column
-            Child, txtEvent := TextObject,
-              MUIA_Text_PreParse, '\er',
-              MUIA_Text_Contents, '',
-              MUIA_FixWidthTxt, '(no events) ',
-              MUIA_Weight, 0,
-            End,
-            Child, HGroup,
-              Child, strHandler := StringObject, StringFrame, MUIA_String_Contents, '', End,
-              Child, btnDefHandler := SimpleButton('New'),
-              Child, btnEditHandler := SimpleButton('Edit'),
-            End,
             Child, Label2('Weight:'),
             Child, strWeight := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Fixed width:'),
@@ -1073,60 +1211,138 @@ PROC main() HANDLE
             Child, Label2('Hint:'),
             Child, strHint := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Disabled:'),
-            Child, chkDisabled := CheckMark(FALSE),
+            -> a fixed-size gadget would stop its whole column stretching, so each
+            -> checkmark gets a stretchy neighbour
+            Child, HGroup,
+              Child, chkDisabled := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
             Child, Label2('Frame:'),
-            Child, chkFrame := CheckMark(FALSE),
+            Child, HGroup,
+              Child, chkFrame := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
+          End,
+          Child, VSpace(0),
+        End,
+        Child, VGroup,
+          Child, ColGroup(2),
+            -> acts as a label: right-aligned, and no weight so it can't claim the
+            -> width that belongs to the gadget column
+            Child, txtEvent := TextObject,
+              MUIA_Text_PreParse, '\er',
+              MUIA_Text_Contents, '',
+              MUIA_FixWidthTxt, '(no events) ',
+              MUIA_Weight, 0,
+            End,
+            Child, HGroup,
+              Child, strHandler := StringObject, StringFrame, MUIA_String_Contents, '', End,
+              Child, btnDefHandler := SimpleButton('New'),
+              Child, btnEditHandler := SimpleButton('Edit'),
+            End,
           End,
           Child, VSpace(0),
         End,
       End,
-      End,
-      Child, VGroup,
-        Child, HGroup,
-          Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
-          Child, btnSaveCode := SimpleButton('Save Code'),
-          Child, btnReloadCode := SimpleButton('Reload'),
-          Child, btnCompile := SimpleButton('Compile'),
-          Child, btnRun := SimpleButton('Run'),
-        End,
-        Child, HGroup,
-          MUIA_Weight, 80,
-          MUIA_Group_Spacing, 0,
-          Child, editor,
-          Child, slider,
-        End,
-        Child, HGroup,
-          MUIA_Weight, 20,
-          MUIA_Group_Spacing, 0,
-          Child, logEditor,
-          Child, logSlider,
-        End,
-      End,
-      End,
-      Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
     End,
   End
 
-  IF win = NIL THEN Raise('Failed to create the window')
+  -> Form window: the structure tree beside the live form
+  winForm := WindowObject,
+    MUIA_Window_Title, 'Form',
+    MUIA_Window_ID, "DFRM",
+    MUIA_Window_Menustrip, makeMenu(2),
+    MUIA_Window_LeftEdge, 305,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
+    MUIA_Window_Width, 560,
+    MUIA_Window_Height, 280,
+    WindowContents, HGroup,
+      Child, VGroup,
+        MUIA_Weight, 35,
+        Child, ListviewObject,
+          MUIA_Listview_List, tree,
+        End,
+        Child, HGroup,
+          Child, btnDelete := SimpleButton('Delete'),
+          Child, btnUp := SimpleButton('Up'),
+          Child, btnDown := SimpleButton('Down'),
+        End,
+      End,
+      Child, liveHolder := VGroup,
+        MUIA_Weight, 65,
+        GroupFrameT('Form'),
+        Child, RectangleObject, MUIA_Weight, 1, End,
+      End,
+    End,
+  End
+
+  -> Code window: the generated file, and the compiler output below it
+  winCode := WindowObject,
+    MUIA_Window_Title, 'Code',
+    MUIA_Window_ID, "DCOD",
+    MUIA_Window_Menustrip, makeMenu(3),
+    MUIA_Window_LeftEdge, 305,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(410),
+    MUIA_Window_Width, 560,
+    MUIA_Window_Height, 330,
+    WindowContents, VGroup,
+      Child, HGroup,
+        Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
+        Child, btnSaveCode := SimpleButton('Save Code'),
+        Child, btnReloadCode := SimpleButton('Reload'),
+        Child, btnCompile := SimpleButton('Compile'),
+        Child, btnRun := SimpleButton('Run'),
+      End,
+      Child, HGroup,
+        MUIA_Weight, 80,
+        MUIA_Group_Spacing, 0,
+        Child, editor,
+        Child, slider,
+      End,
+      Child, HGroup,
+        MUIA_Weight, 20,
+        MUIA_Group_Spacing, 0,
+        Child, logEditor,
+        Child, logSlider,
+      End,
+    End,
+  End
+
+  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL)
+    Raise('Failed to create the windows')
+  ENDIF
 
   app := ApplicationObject,
     MUIA_Application_Title      , 'DelphE Designer',
-    MUIA_Application_Version    , '$VER: Designer 0.1 (23.10.26)',
+    MUIA_Application_Version    , '$VER: Designer 0.2 (23.10.26)',
     MUIA_Application_Description, 'DelphE form designer',
     MUIA_Application_Base       , 'DELPHEDESIGNER',
     SubWindow, win,
+    SubWindow, winInsp,
+    SubWindow, winForm,
+    SubWindow, winCode,
   End
 
   IF app = NIL THEN Raise('Failed to create Application.')
 
+  -> closing the main window quits; the others just hide (Window menu)
   doMethodA(win, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
     app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])
+  doMethodA(winInsp, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
+    winInsp, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+  doMethodA(winForm, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
+    winForm, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+  doMethodA(winCode, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
+    winCode, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_NAME])
   doMethodA(strTitle, [MUIM_Notify, MUIA_String_Contents, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_TITLE])
+  doMethodA(strTitle, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_TITLEDONE])
   doMethodA(strHandler, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_HANDLER])
   doMethodA(btnDefHandler, [MUIM_Notify, MUIA_Pressed, FALSE,
@@ -1155,21 +1371,10 @@ PROC main() HANDLE
     app, 2, MUIM_Application_ReturnID, ID_SAVECODE])
   doMethodA(btnReloadCode, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_RELOADCODE])
-  hookMenu(miNew, ID_NEW)
-  hookMenu(miOpen, ID_OPEN)
-  hookMenu(miSave, ID_SAVE)
-  hookMenu(miSaveAs, ID_SAVEAS)
-  hookMenu(miQuit, MUIV_Application_ReturnID_Quit)
-  hookMenu(miPreview, ID_PREVIEW)
-  hookMenu(miGenerate, ID_GENERATE)
-  hookMenu(miCompile, ID_COMPILE)
-  hookMenu(miRun, ID_RUN)
   doMethodA(btnCompile, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_COMPILE])
   doMethodA(btnRun, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_RUN])
-  doMethodA(btnAdd, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_ADD])
   doMethodA(btnDelete, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DELETE])
   doMethodA(btnUp, [MUIM_Notify, MUIA_Pressed, FALSE,
@@ -1177,61 +1382,92 @@ PROC main() HANDLE
   doMethodA(btnDown, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DOWN])
 
-  addTree(form, MUIV_Listtree_Insert_ListNode_Root)
+  hookMenus(4)
 
+  -> toolbar buttons are numbered in order, spaces included; 0 = a space
+  ids := [ID_NEW, ID_OPEN, ID_SAVE, 0, ID_PREVIEW, ID_GENERATE, 0, ID_COMPILE, ID_RUN]
+  FOR i := 0 TO 8
+    IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
+  ENDFOR
+  FOR i := 0 TO 10
+    hookButton(paletteBar, i, ID_PALETTE + i)
+  ENDFOR
+
+  addTree(form, MUIV_Listtree_Insert_ListNode_Root)
+  loadCode()
+
+  set(winInsp, MUIA_Window_Open, MUI_TRUE)
+  set(winForm, MUIA_Window_Open, MUI_TRUE)
+  set(winCode, MUIA_Window_Open, MUI_TRUE)
   set(win, MUIA_Window_Open, MUI_TRUE)
+  showProps(NIL)
+  refreshLive()
+  updateTitle()
 
   running := TRUE
   WHILE running
     id := doMethodA(app, [MUIM_Application_NewInput, {sigs}])
-    SELECT id
-      CASE MUIV_Application_ReturnID_Quit
-        IF confirmDiscard() THEN running := FALSE
-      CASE ID_SELECT
-        onSelect()
-      CASE ID_NAME
-        commitEdits()
-      CASE ID_TITLE
-        onTitle()
-      CASE ID_HANDLER
-        commitHandler()
-      CASE ID_DEFHANDLER
-        onDefaultHandler()
-      CASE ID_PROPS
-        commitProps()
-      CASE ID_EDITHANDLER
-        doEditHandler()
-      CASE ID_SAVECODE
-        saveCode()
-        status('Code saved')
-      CASE ID_RELOADCODE
-        loadCode()
-        status('Code reloaded from disk')
-      CASE ID_NEW
-        doNew()
-      CASE ID_OPEN
-        doOpen()
-      CASE ID_SAVEAS
-        doSaveAs()
-      CASE ID_COMPILE
-        compileCode()
-      CASE ID_RUN
-        runCode()
-      CASE ID_SAVE
-        doSave()
-      CASE ID_PREVIEW
-        doPreview()
-      CASE ID_GENERATE
-        doGenerate()
-      CASE ID_ADD
-        doAdd()
-      CASE ID_DELETE
-        doDelete()
-      CASE ID_UP
-        doMove(-1)
-      CASE ID_DOWN
-        doMove(1)
-    ENDSELECT
+
+    IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 11))
+      doAdd(id - ID_PALETTE)
+    ELSE
+      SELECT id
+        CASE MUIV_Application_ReturnID_Quit
+          IF confirmDiscard() THEN running := FALSE
+        CASE ID_SELECT
+          onSelect()
+        CASE ID_NAME
+          commitEdits()
+        CASE ID_TITLE
+          onTitle()
+        CASE ID_HANDLER
+          commitHandler()
+        CASE ID_DEFHANDLER
+          onDefaultHandler()
+        CASE ID_PROPS
+          commitProps()
+        CASE ID_EDITHANDLER
+          doEditHandler()
+        CASE ID_SAVECODE
+          saveCode()
+          status('Code saved')
+        CASE ID_RELOADCODE
+          loadCode()
+          status('Code reloaded from disk')
+        CASE ID_NEW
+          doNew()
+        CASE ID_OPEN
+          doOpen()
+        CASE ID_SAVEAS
+          doSaveAs()
+        CASE ID_COMPILE
+          compileCode()
+        CASE ID_RUN
+          runCode()
+        CASE ID_SAVE
+          doSave()
+        CASE ID_PREVIEW
+          doPreview()
+        CASE ID_GENERATE
+          doGenerate()
+        CASE ID_DELETE
+          doDelete()
+        CASE ID_UP
+          doMove(-1)
+        CASE ID_DOWN
+          doMove(1)
+        CASE ID_SHOWFORM
+          showWin(winForm)
+        CASE ID_SHOWINSP
+          showWin(winInsp)
+        CASE ID_SHOWCODE
+          showWin(winCode)
+      ENDSELECT
+    ENDIF
+
+    -> typing in the title box does not rebuild on every key; Return, or any
+    -> other action, brings the live form up to date
+    IF running AND liveStale AND (id <> ID_TITLE) THEN refreshLive()
     IF running AND sigs THEN sigs := Wait(sigs)
   ENDWHILE
 

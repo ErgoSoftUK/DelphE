@@ -1,0 +1,9 @@
+Toolbar images (actions.iff, components.iff)
+============================================
+
+Built by tools/make-icons.ps1 from icons of the "LED icons" pack by led24.de
+(http://led24.de), licensed under Creative Commons Attribution-ShareAlike 3.0:
+http://creativecommons.org/licenses/by-sa/3.0/
+
+The icons were reduced to 32 colours and joined into strips, which counts as
+adapting them: these two files are therefore also shared under CC BY-SA 3.0.

@@ -13,6 +13,7 @@ ec Builder >> /build.out
 ec Preview >> /build.out
 ec mcc/Listtree_mcc >> /build.out
 ec mcc/TextEditor_MCC >> /build.out
+ec mcc/Toolbar_mcc >> /build.out
 ec designer/Designer >> /build.out
 cd /
 type build.out
