@@ -123,9 +123,10 @@ the watcher.
 A project is a program with more than one form. **Project > New project...**
 creates a `.mproj` file with a first form beside it; **Open project...** opens
 one (or start the designer with `src/designer/designer forms/demo.mproj`). The
-**Project window** lists the forms: click one to edit it, or use New, Add...,
-Remove and Make main. In a project, **New form** and **Open form** add to the
-project, and **Save** writes every form and the project file.
+**form drop-down** at the top of the Object Inspector lists the forms: pick one
+to edit it. The toolbar has New project and Open project, and the Project menu
+has Remove form and Make main form. In a project, **New form** and **Open form**
+add to the project, and **Save** writes every form and the project file.
 
 Generate writes a single `<ProjectName>.e` with every form in it, and Compile and
 Run build that program. The first form is the main form and opens at start;

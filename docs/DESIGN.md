@@ -129,8 +129,9 @@ PROC main() ...                                                   (yours)
 Four windows, in the style of Delphi 3. MUI keeps each window's position, so
 they reopen where you left them.
 
-- **Main window:** menus, an actions toolbar (new, open, save, preview, generate,
-  compile, run), the component palette and the status line. Both toolbars are
+- **Main window:** menus, an actions toolbar (new and open project, new and open
+  form, save, remove form, preview, generate, compile, run), the component
+  palette and the status line. Both toolbars are
   `Toolbar.mcc` with the strips in `Images/` (built by `tools/make-icons.ps1`).
   Clicking a palette button adds that kind to the selected group.
 - **Form window:** the structure tree (`Listtree.mcc`) with Delete / Up / Down,
@@ -149,12 +150,15 @@ they reopen where you left them.
   Leaf-onto-leaf exchange (a Listtree feature) did not work reliably here, and
   an attempt to do the drop ourselves with `MUIM_Listtree_TestPos` picked the
   wrong target, so both were dropped. Use Up / Down or drag onto a group.
-- **Object Inspector:** a Properties page (name, title or entries, weight, fixed
+- **Object Inspector:** a drop-down of the project's forms at the top (a Cycle
+  gadget, rebuilt when the list changes, because a Cycle's entries are fixed when
+  it is made), then a Properties page (name, title or entries, weight, fixed
   size, min/max/value, hint, disabled, frame) and an Events page (the handler,
   with New and Edit).
 - **Code window:** `TextEditor.mcc` showing the generated file, a read-only pane
   for compiler output, and Save Code, Reload, Compile and Run.
-- **Menus:** Project (New, Open, Save, Save As, Quit), Edit (Undo, Redo, Delete,
+- **Menus:** Project (New project, Open project, New form, Open form, Remove
+  form, Make main form, Save, Save As, Quit), Edit (Undo, Redo, Delete,
   Move up, Move down), Build (Preview, Generate, Compile, Run) and Window (Form,
   Object Inspector, Code). An Amiga menu bar
   belongs to the active window, so every window gets its own copy.
@@ -226,7 +230,7 @@ several forms can share the one main loop: every form's `handleEvent` is called
 with each id and only reacts to its own range.
 
 **In the designer** one form is edited at a time and the project keeps all the
-forms in memory (`projForms`, `projPaths`). The Project window lists them. Save
+forms in memory (`projForms`, `projPaths`). The form drop-down in the Object Inspector lists them. Save
 writes every form and the project file. Undo history is per form: it is cleared
 when you switch. Removing a form leaves its old regions in the generated file.
 A project holds at most 16 forms.

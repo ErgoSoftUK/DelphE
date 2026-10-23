@@ -20,18 +20,17 @@ ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
-     ID_NEWPROJ, ID_OPENPROJ, ID_SHOWPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN
+     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
 
-CONST UNDOMAX = 40, MENUITEMS = 20
+CONST UNDOMAX = 40, MENUITEMS = 21
 
 DEF mItems[100]: ARRAY OF LONG
 
 -> the project: several forms in one program (projectPath is NIL for a single form)
-DEF projectPath, projectName, projCount, projCur, lstForms, winProj,
-    btnFormNew, btnFormAdd, btnFormRemove, btnFormMain,
+DEF projectPath, projectName, projCount, projCur, cycForms, cycHolder,
     projPaths[16]: ARRAY OF LONG, projForms[16]: ARRAY OF LONG,
     candPaths[16]: ARRAY OF LONG, candForms[16]: ARRAY OF LONG, candCount, candName
 
@@ -730,19 +729,39 @@ ENDPROC generateProject(path, projectName, forms, projCount)
 
 -> The Project window's list: the forms by window name, the main form first
 PROC refreshProjectList()
-  DEF i, n, label, w: PTR TO component
-  doMethodA(lstForms, [MUIM_List_Clear])
+  DEF names, i, n, label, active, w: PTR TO component, fresh
   n := 1
   IF projectPath THEN n := projCount
+  names := List(n + 1)
   FOR i := 0 TO n - 1
     w := form
     IF projectPath THEN w := projForms[i]
     label := String(StrLen(w.name) + 12)
     StrCopy(label, w.name, ALL)
     IF i = 0 THEN StrAdd(label, ' (main)', ALL)
-    doMethodA(lstForms, [MUIM_List_InsertSingle, label, MUIV_List_Insert_Bottom])
+    ListAdd(names, [label], 1)
   ENDFOR
-  IF projectPath THEN set(lstForms, MUIA_List_Active, projCur) ELSE set(lstForms, MUIA_List_Active, 0)
+  ListAdd(names, [NIL], 1)
+  active := 0
+  IF projectPath THEN active := projCur
+
+  -> a Cycle's entries are fixed when it is made, so a new one replaces the old
+  fresh := CycleObject,
+    MUIA_Font, MUIV_Font_Button,
+    MUIA_Cycle_Entries, names,
+    MUIA_Cycle_Active, active,
+  End
+  IF fresh = NIL THEN RETURN
+  doMethodA(cycHolder, [MUIM_Group_InitChange])
+  IF cycForms
+    doMethodA(cycHolder, [OM_REMMEMBER, cycForms])
+    Mui_DisposeObject(cycForms)
+  ENDIF
+  doMethodA(cycHolder, [OM_ADDMEMBER, fresh])
+  doMethodA(cycHolder, [MUIM_Group_ExitChange])
+  cycForms := fresh
+  doMethodA(cycForms, [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_FORMSEL])
 ENDPROC
 
 -> Makes form i of the project the one being edited
@@ -757,7 +776,7 @@ PROC loadFormIndex(i)
   rebuildTree(form)
   refreshLive()
   updateTitle()
-  IF lstForms THEN set(lstForms, MUIA_List_Active, i)
+  IF cycForms THEN set(cycForms, MUIA_Cycle_Active, i)
 ENDPROC
 
 PROC switchForm(i)
@@ -771,7 +790,7 @@ ENDPROC
 PROC onFormSelect()
   DEF i
   IF projectPath = NIL THEN RETURN
-  get(lstForms, MUIA_List_Active, {i})
+  get(cycForms, MUIA_Cycle_Active, {i})
   IF (i >= 0) AND (i < projCount) AND (i <> projCur) THEN switchForm(i)
 ENDPROC
 
@@ -1312,12 +1331,12 @@ ENDPROC
 
 /*** undo and redo ***/
 
--> Menu items 7 and 8 of each window's menus are Undo and Redo
+-> Menu items 9 and 10 of each window's menus are Undo and Redo
 PROC updateUndoMenu()
   DEF slot, undoItem, redoItem
-  FOR slot := 0 TO 4
-    undoItem := mItems[slot * MENUITEMS + 7]
-    redoItem := mItems[slot * MENUITEMS + 8]
+  FOR slot := 0 TO 3
+    undoItem := mItems[slot * MENUITEMS + 9]
+    redoItem := mItems[slot * MENUITEMS + 10]
     IF undoTop > 0
       set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
     ELSE
@@ -1458,7 +1477,7 @@ ENDPROC
 -> belongs to the active window. The items are remembered in mItems (12 per
 -> window) so hookMenus() can connect them once the application exists.
 PROC makeMenu(slot)
-  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, base
+  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, m21, base
   strip := MenustripObject,
     MUIA_Family_Child, MenuObjectT('Project'),
       MUIA_Family_Child, m1 := MenuitemObject,
@@ -1472,49 +1491,53 @@ PROC makeMenu(slot)
       MUIA_Family_Child, m4 := MenuitemObject,
         MUIA_Menuitem_Title, 'Open form...', MUIA_Menuitem_Shortcut, 'O', End,
       MUIA_Family_Child, m5 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+        MUIA_Menuitem_Title, 'Remove form from project', End,
       MUIA_Family_Child, m6 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
+        MUIA_Menuitem_Title, 'Make main form', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
       MUIA_Family_Child, m7 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+      MUIA_Family_Child, m8 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, m9 := MenuitemObject,
         MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
     End,
     MUIA_Family_Child, MenuObjectT('Edit'),
-      MUIA_Family_Child, m8 := MenuitemObject,
+      MUIA_Family_Child, m10 := MenuitemObject,
         MUIA_Menuitem_Title, 'Undo', MUIA_Menuitem_Shortcut, 'Z', End,
-      MUIA_Family_Child, m9 := MenuitemObject,
+      MUIA_Family_Child, m11 := MenuitemObject,
         MUIA_Menuitem_Title, 'Redo', MUIA_Menuitem_Shortcut, 'Y', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m10 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
-      MUIA_Family_Child, m11 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
       MUIA_Family_Child, m12 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
+      MUIA_Family_Child, m13 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
+      MUIA_Family_Child, m14 := MenuitemObject,
         MUIA_Menuitem_Title, 'Move down', MUIA_Menuitem_Shortcut, 'J', End,
     End,
     MUIA_Family_Child, MenuObjectT('Build'),
-      MUIA_Family_Child, m13 := MenuitemObject,
+      MUIA_Family_Child, m15 := MenuitemObject,
         MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m14 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
-      MUIA_Family_Child, m15 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
       MUIA_Family_Child, m16 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
+      MUIA_Family_Child, m17 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
+      MUIA_Family_Child, m18 := MenuitemObject,
         MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
     End,
     MUIA_Family_Child, MenuObjectT('Window'),
-      MUIA_Family_Child, m17 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
-      MUIA_Family_Child, m18 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
       MUIA_Family_Child, m19 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
+        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
       MUIA_Family_Child, m20 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Project', MUIA_Menuitem_Shortcut, '4', End,
+        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
+      MUIA_Family_Child, m21 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
     End,
   End
   IF strip = NIL THEN Raise('Failed to create the menus')
@@ -1539,16 +1562,17 @@ PROC makeMenu(slot)
   mItems[base + 17] := m18
   mItems[base + 18] := m19
   mItems[base + 19] := m20
+  mItems[base + 20] := m21
 ENDPROC strip
 
 
 PROC hookMenus(windows)
   DEF ids, slot, k
-  ids := [ID_NEWPROJ, ID_OPENPROJ, ID_NEW, ID_OPEN, ID_SAVE, ID_SAVEAS,
-          MUIV_Application_ReturnID_Quit,
+  ids := [ID_NEWPROJ, ID_OPENPROJ, ID_NEW, ID_OPEN, ID_REMOVEFORM, ID_MAKEMAIN,
+          ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
           ID_UNDO, ID_REDO, ID_DELETE, ID_UP, ID_DOWN,
           ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
-          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_SHOWPROJ]
+          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE]
   FOR slot := 0 TO windows - 1
     FOR k := 0 TO MENUITEMS - 1
       hookMenu(mItems[slot * MENUITEMS + k], ListItem(ids, k))
@@ -1611,9 +1635,14 @@ ENDPROC
 PROC makeToolbars()
   -> toolbar: the buttons are numbered in order, spaces included
   actionsDef := buildBank([
-    Toolbar_HintButton(0, 'New form', NIL),
-    Toolbar_HintButton(0, 'Open form', NIL),
-    Toolbar_HintButton(0, 'Save form', NIL),
+    Toolbar_HintButton(0, 'New project', NIL),
+    Toolbar_HintButton(0, 'Open project', NIL),
+    Toolbar_Space,
+    Toolbar_HintButton(0, 'New form (added to the project if there is one)', NIL),
+    Toolbar_HintButton(0, 'Open form (added to the project if there is one)', NIL),
+    Toolbar_HintButton(0, 'Save (every form of a project)', NIL),
+    Toolbar_Space,
+    Toolbar_HintButton(0, 'Remove this form from the project', NIL),
     Toolbar_Space,
     Toolbar_HintButton(0, 'Preview the form in its own window', NIL),
     Toolbar_HintButton(0, 'Generate code', NIL),
@@ -1686,6 +1715,13 @@ PROC makeInspectorWindow()
     MUIA_Window_Width, 300,
     MUIA_Window_Height, 400,
     WindowContents, VGroup,
+      -> the form being edited: pick another form of the project here
+      Child, cycHolder := VGroup,
+        Child, cycForms := CycleObject,
+          MUIA_Font, MUIV_Font_Button,
+          MUIA_Cycle_Entries, ['(form)', NIL],
+        End,
+      End,
       Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
       Child, inspPages := RegisterGroup(inspTitles),
         MUIA_Register_Frame, MUI_TRUE,
@@ -1779,34 +1815,6 @@ PROC makeFormWindow()
   End
 ENDPROC
 
-PROC makeProjectWindow()
-  -> Project window: the forms of the project
-  lstForms := ListObject,
-    InputListFrame,
-  End
-  winProj := WindowObject,
-    MUIA_Window_Title, 'Project',
-    MUIA_Window_ID, "DPRJ",
-    MUIA_Window_Menustrip, makeMenu(4),
-    MUIA_Window_LeftEdge, 875,
-    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
-    MUIA_Window_Width, 190,
-    MUIA_Window_Height, 280,
-    WindowContents, VGroup,
-      Child, ListviewObject,
-        MUIA_Listview_List, lstForms,
-      End,
-      Child, HGroup,
-        Child, btnFormNew := SimpleButton('New'),
-        Child, btnFormAdd := SimpleButton('Add...'),
-      End,
-      Child, HGroup,
-        Child, btnFormRemove := SimpleButton('Remove'),
-        Child, btnFormMain := SimpleButton('Make main'),
-      End,
-    End,
-  End
-ENDPROC
 
 PROC makeCodeWindow()
   -> Code window: the generated file, and the compiler output below it
@@ -1844,7 +1852,7 @@ ENDPROC
 
 -> All the windows go into one application
 PROC makeApplication()
-  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL) OR (winProj = NIL)
+  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL)
     Raise('Failed to create the windows')
   ENDIF
 
@@ -1857,7 +1865,6 @@ PROC makeApplication()
     SubWindow, winInsp,
     SubWindow, winForm,
     SubWindow, winCode,
-    SubWindow, winProj,
   End
 
   IF app = NIL THEN Raise('Failed to create Application.')
@@ -1876,19 +1883,6 @@ PROC connectEvents()
     winForm, 3, MUIM_Set, MUIA_Window_Open, FALSE])
   doMethodA(winCode, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
     winCode, 3, MUIM_Set, MUIA_Window_Open, FALSE])
-  doMethodA(winProj, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
-    winProj, 3, MUIM_Set, MUIA_Window_Open, FALSE])
-  doMethodA(lstForms, [MUIM_Notify, MUIA_List_Active, MUIV_EveryTime,
-    app, 2, MUIM_Application_ReturnID, ID_FORMSEL])
-  doMethodA(btnFormNew, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_NEW])
-  doMethodA(btnFormAdd, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_OPEN])
-  doMethodA(btnFormRemove, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_REMOVEFORM])
-  doMethodA(btnFormMain, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_MAKEMAIN])
-
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
@@ -1936,12 +1930,13 @@ PROC connectEvents()
   doMethodA(btnDown, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DOWN])
 
-  hookMenus(5)
+  hookMenus(4)
   updateUndoMenu()
 
   -> toolbar buttons are numbered in order, spaces included; 0 = a space
-  ids := [ID_NEW, ID_OPEN, ID_SAVE, 0, ID_PREVIEW, ID_GENERATE, 0, ID_COMPILE, ID_RUN]
-  FOR i := 0 TO 8
+  ids := [ID_NEWPROJ, ID_OPENPROJ, 0, ID_NEW, ID_OPEN, ID_SAVE, 0, ID_REMOVEFORM, 0,
+          ID_PREVIEW, ID_GENERATE, 0, ID_COMPILE, ID_RUN]
+  FOR i := 0 TO 13
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
   FOR i := 0 TO 10
@@ -1954,7 +1949,6 @@ PROC openWindows()
   loadCode()
 
   refreshProjectList()
-  set(winProj, MUIA_Window_Open, MUI_TRUE)
   set(winInsp, MUIA_Window_Open, MUI_TRUE)
   set(winForm, MUIA_Window_Open, MUI_TRUE)
   set(winCode, MUIA_Window_Open, MUI_TRUE)
@@ -2028,8 +2022,6 @@ PROC handleId(id)
         showWin(winInsp)
       CASE ID_SHOWCODE
         showWin(winCode)
-      CASE ID_SHOWPROJ
-        showWin(winProj)
       CASE ID_NEWPROJ
         doNewProject()
       CASE ID_OPENPROJ
@@ -2091,7 +2083,6 @@ PROC main() HANDLE
   makeMainWindow()
   makeInspectorWindow()
   makeFormWindow()
-  makeProjectWindow()
   makeCodeWindow()
   makeApplication()
   connectEvents()
