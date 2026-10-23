@@ -11,7 +11,7 @@
 OPT PREPROCESS
 OPT LARGE
 
-MODULE 'libraries/gadtools', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
+MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
        '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
@@ -19,7 +19,7 @@ MODULE 'libraries/gadtools', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/m
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_ADD, ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
-     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO
+     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
@@ -27,6 +27,8 @@ CONST ID_PALETTE = 100
 CONST UNDOMAX = 40, MENUITEMS = 17
 
 DEF mItems[80]: ARRAY OF LONG
+
+DEF treeMcc: PTR TO mui_customclass
 
 -> undo and redo: copies of the whole form, newest last, with the position of the
 -> selected component so it can be selected again
@@ -959,6 +961,99 @@ ENDPROC
 /*** main ***/
 
 
+/*** drag and drop in the tree ***/
+
+-> A Listtree that tells the main loop when something has been dropped on it.
+-> The Listtree does the actual moving; onTreeDrop() then brings the model
+-> into line with what the tree now shows.
+PROC treeDispatcher(cl: PTR TO iclass, obj, msg: PTR TO msg)
+  DEF methodID, r
+  methodID := msg.methodid
+  IF methodID = MUIM_DragDrop
+    r := doSuperMethodA(cl, obj, msg)
+    doMethodA(app, [MUIM_Application_ReturnID, ID_TREEDROP])
+    RETURN r
+  ENDIF
+ENDPROC doSuperMethodA(cl, obj, msg)
+
+PROC firstChildNode(node)
+ENDPROC doMethodA(tree, [MUIM_Listtree_GetEntry, node, MUIV_Listtree_GetEntry_Position_Head, 0])
+
+PROC nextSiblingNode(node)
+ENDPROC doMethodA(tree, [MUIM_Listtree_GetEntry, node, MUIV_Listtree_GetEntry_Position_Next,
+                         MUIV_Listtree_GetEntry_Flags_SameLevel])
+
+-> Does the tree below this node list the same components, in the same order,
+-> as the model has below c?
+PROC treeMatches(node, c: PTR TO component)
+  DEF child: PTR TO muis_listtree_treenode, d: PTR TO component, mc: PTR TO component
+  IF isContainer(c.kind) = FALSE THEN RETURN TRUE
+  child := firstChildNode(node)
+  mc := c.firstChild
+  WHILE child
+    d := child.tn_User
+    IF mc = NIL THEN RETURN FALSE
+    IF d <> mc THEN RETURN FALSE
+    IF treeMatches(child, d) = FALSE THEN RETURN FALSE
+    mc := mc.next
+    child := nextSiblingNode(child)
+  ENDWHILE
+  IF mc THEN RETURN FALSE
+ENDPROC TRUE
+
+-> Is the arrangement the tree now shows one the model can hold? There must be
+-> exactly one top-level entry, the window, and the window may hold only a
+-> single group.
+PROC validDrop(rootNode: PTR TO muis_listtree_treenode)
+  DEF wchild: PTR TO muis_listtree_treenode, d: PTR TO component
+  IF rootNode = NIL THEN RETURN FALSE
+  IF rootNode.tn_User <> form THEN RETURN FALSE
+  IF nextSiblingNode(rootNode) THEN RETURN FALSE
+  wchild := firstChildNode(rootNode)
+  IF wchild
+    IF nextSiblingNode(wchild) THEN RETURN FALSE
+    d := wchild.tn_User
+    IF isContainer(d.kind) = FALSE THEN RETURN FALSE
+  ENDIF
+ENDPROC TRUE
+
+-> Rebuilds the model's child links from the tree, below this node
+PROC relinkFromTree(node, c: PTR TO component)
+  DEF child: PTR TO muis_listtree_treenode, d: PTR TO component
+  IF isContainer(c.kind) = FALSE THEN RETURN
+  c.firstChild := NIL
+  c.lastChild := NIL
+  child := firstChildNode(node)
+  WHILE child
+    d := child.tn_User
+    d.next := NIL
+    d.parent := NIL
+    c.addChild(d)
+    relinkFromTree(child, d)
+    child := nextSiblingNode(child)
+  ENDWHILE
+ENDPROC
+
+PROC onTreeDrop()
+  DEF rootNode
+  rootNode := doMethodA(tree, [MUIM_Listtree_GetEntry, MUIV_Listtree_GetEntry_ListNode_Root,
+                               MUIV_Listtree_GetEntry_Position_Head, 0])
+  IF rootNode = NIL THEN RETURN
+  IF treeMatches(rootNode, form) THEN RETURN
+
+  IF validDrop(rootNode) = FALSE
+    -> put the tree back the way the model has it
+    status('That move is not allowed here')
+    IF selected THEN rebuildTree(selected) ELSE rebuildTree(form)
+    RETURN
+  ENDIF
+
+  pushUndo()
+  relinkFromTree(rootNode, form)
+  markDirty()
+  status('Moved')
+ENDPROC
+
 /*** undo and redo ***/
 
 -> Menu items 5 and 6 of each window's menus are Undo and Redo
@@ -1236,9 +1331,15 @@ PROC main() HANDLE
 
   -> No construct/destruct hooks: the string hook would copy our component
   -> pointer as if it were a string. The component is stored as-is in tn_User.
-  tree := ListtreeObject,
-    InputListFrame,
-  End
+  treeMcc := eMui_CreateCustomClass(NIL, MUIC_Listtree, NIL, 4, {treeDispatcher})
+  IF treeMcc = NIL THEN Raise('Could not create the tree class (is Listtree.mcc installed?)')
+  -> new entries go to the end of a group; empty groups can still take drops
+  tree := NewObjectA(treeMcc.mcc_class, NIL,
+    [MUIA_Frame, MUIV_Frame_InputList,
+     MUIA_Listtree_EmptyNodes, MUI_TRUE,
+     MUIA_Listtree_SortHook, MUIV_Listtree_SortHook_Tail,
+     TAG_DONE, 0])
+  IF tree = NIL THEN Raise('Could not create the tree')
 
   inspTitles := ['Properties', 'Events', NIL]
 
@@ -1410,6 +1511,7 @@ PROC main() HANDLE
       Child, VGroup,
         MUIA_Weight, 35,
         Child, ListviewObject,
+          MUIA_Listview_DragType, MUIV_Listview_DragType_Immediate,
           MUIA_Listview_List, tree,
         End,
         Child, HGroup,
@@ -1601,6 +1703,8 @@ PROC main() HANDLE
           doPreview()
         CASE ID_GENERATE
           doGenerate()
+        CASE ID_TREEDROP
+          onTreeDrop()
         CASE ID_UNDO
           doUndo()
         CASE ID_REDO
@@ -1631,6 +1735,7 @@ PROC main() HANDLE
 
 EXCEPT DO
   IF app THEN Mui_DisposeObject(app)
+  IF treeMcc THEN Mui_DeleteCustomClass(treeMcc)
   IF muimasterbase THEN CloseLibrary(muimasterbase)
   IF exception THEN WriteF('\s\n', exception)
 ENDPROC

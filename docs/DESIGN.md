@@ -137,6 +137,18 @@ they reopen where you left them.
   next to the **live form**: the real MUI objects, rebuilt after each change. MUI
   has no free positioning or resizing to drag, so components are selected in the
   tree, not by clicking them in the live form.
+  The tree also takes **drag and drop**. It is a small subclass of
+  `Listtree.mcc` (`treeDispatcher`, created with `eMui_CreateCustomClass`) that
+  lets the Listtree do the moving and then posts a return ID. `onTreeDrop` checks
+  the new arrangement (one window at the top, holding one group), then either
+  takes an undo snapshot and rebuilds the model's child links from the tree, or
+  rebuilds the tree from the model to undo the move. The tree uses
+  `MUIV_Listtree_SortHook_Tail`, so a drop onto a closed group appends rather
+  than sorting alphabetically. Each drop is one undo step.
+
+  Leaf-onto-leaf exchange (a Listtree feature) did not work reliably here, and
+  an attempt to do the drop ourselves with `MUIM_Listtree_TestPos` picked the
+  wrong target, so both were dropped. Use Up / Down or drag onto a group.
 - **Object Inspector:** a Properties page (name, title or entries, weight, fixed
   size, min/max/value, hint, disabled, frame) and an Events page (the handler,
   with New and Edit).

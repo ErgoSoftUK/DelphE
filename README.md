@@ -29,6 +29,8 @@ source.
   Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run),
   with unsaved-changes prompts.
 - **Undo and redo** for every change to the form (up to 40 steps).
+- **Drag and drop** in the Form window's tree to reorder components or move them
+  into another group.
 
 See `docs/DESIGN.md` for how it fits together.
 
@@ -103,7 +105,10 @@ the watcher.
    Names must start with a lowercase letter, and must be unique.
 2. Click a component in the **palette** on the main window to add it inside the
    selected group, or beside the selected component. The Form window shows the
-   result live, and has Delete, Up and Down for the selected component.
+   result live, and has Delete, Up and Down for the selected component. You can
+   also drag an entry in the tree to a new place, including into another group.
+   Moves the form cannot hold (for example, a second group next to the window's
+   one group) are refused and the tree snaps back.
 3. **Preview form** (Build menu) shows the form as it is right now.
 4. **Generate code** writes `<WindowName>.e` next to the `.mform` file. Select a
    component with a handler and click **Edit** to jump to its procedure.
