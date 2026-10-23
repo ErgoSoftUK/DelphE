@@ -25,8 +25,10 @@ source.
   your own code. Regenerating keeps your handlers and adds stubs for new ones.
 - **Code editor** (TextEditor.mcc) with Compile and Run, compiler output, and
   jump to the line of a compile error.
-- **Project menu** (New, Open, Save, Save As, Quit) and **Build menu**
-  (Preview, Generate, Compile, Run), with unsaved-changes prompts.
+- **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
+  Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run),
+  with unsaved-changes prompts.
+- **Undo and redo** for every change to the form (up to 40 steps).
 
 See `docs/DESIGN.md` for how it fits together.
 

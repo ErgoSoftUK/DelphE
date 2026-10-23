@@ -160,3 +160,71 @@ PROC eventSuffix(kind)
       RETURN 'DoubleClick'
   ENDSELECT
 ENDPROC NIL
+
+-> A deep copy of c and everything under it. Strings are shared with the
+-> original: they are never changed in place, only replaced, so that is safe.
+PROC cloneTree(c: PTR TO component)
+  DEF n: PTR TO component, ch: PTR TO component
+  NEW n
+  n.kind := c.kind
+  n.name := c.name
+  n.title := c.title
+  n.handler := c.handler
+  n.propFlags := c.propFlags
+  n.weight := c.weight
+  n.fixW := c.fixW
+  n.fixH := c.fixH
+  n.hint := c.hint
+  n.minV := c.minV
+  n.maxV := c.maxV
+  n.value := c.value
+  ch := c.firstChild
+  WHILE ch
+    n.addChild(cloneTree(ch))
+    ch := ch.next
+  ENDWHILE
+ENDPROC n
+
+-> Frees the component objects of a tree (not the strings they point to)
+PROC freeTree(c: PTR TO component)
+  DEF ch: PTR TO component, nx: PTR TO component
+  IF c = NIL THEN RETURN
+  ch := c.firstChild
+  WHILE ch
+    nx := ch.next
+    freeTree(ch)
+    ch := nx
+  ENDWHILE
+  END c
+ENDPROC
+
+-> The next component in tree order (parent before children), or NIL
+PROC nextInTree(c: PTR TO component)
+  IF c.firstChild THEN RETURN c.firstChild
+  WHILE c
+    IF c.next THEN RETURN c.next
+    c := c.parent
+  ENDWHILE
+ENDPROC NIL
+
+-> Position of target in tree order starting at root, or -1
+PROC indexInTree(root: PTR TO component, target: PTR TO component)
+  DEF c: PTR TO component, n
+  n := 0
+  c := root
+  WHILE c
+    IF c = target THEN RETURN n
+    n++
+    c := nextInTree(c)
+  ENDWHILE
+ENDPROC -1
+
+-> The component at that position, or NIL
+PROC componentAt(root: PTR TO component, n)
+  DEF c: PTR TO component
+  c := root
+  WHILE c AND (n > 0)
+    c := nextInTree(c)
+    n--
+  ENDWHILE
+ENDPROC c

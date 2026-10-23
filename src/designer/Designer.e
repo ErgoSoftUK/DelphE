@@ -19,12 +19,20 @@ MODULE 'libraries/gadtools', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/m
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_ADD, ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
-     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE
+     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
 
-DEF mItems[48]: ARRAY OF LONG
+CONST UNDOMAX = 40, MENUITEMS = 17
+
+DEF mItems[80]: ARRAY OF LONG
+
+-> undo and redo: copies of the whole form, newest last, with the position of the
+-> selected component so it can be selected again
+DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
+    redoTrees[40]: ARRAY OF LONG, redoSel[40]: ARRAY OF LONG,
+    undoTop, redoTop, lastTitleEdited: PTR TO component
 
 DEF winInsp, winForm, winCode, liveHolder, liveObj, liveStale, actionsBar, paletteBar,
     inspPages, inspTitles, actionsDef, paletteDef,
@@ -310,6 +318,7 @@ PROC commitProps()
     ENDIF
   ENDIF
 
+  pushUndo()
   c.propFlags := nf
   c.weight := nw
   c.fixW := nfx
@@ -378,6 +387,7 @@ PROC commitName()
     RETURN
   ENDIF
 
+  pushUndo()
   c.name := copyStr(p)
   label := makeLabel(c)
   doMethodA(tree, [MUIM_Listtree_Rename, selectedNode, label, 0])
@@ -393,6 +403,11 @@ PROC onTitle()
   get(strTitle, MUIA_String_Contents, {p})
   IF StrLen(p) = StrLen(titleOf(c))
     IF StrCmp(p, titleOf(c), ALL) THEN RETURN
+  ENDIF
+  -> one snapshot for a run of edits to the same title, not one per key
+  IF c <> lastTitleEdited
+    pushUndo()
+    lastTitleEdited := c
   ENDIF
   c.title := copyStr(p)
   markDirty()
@@ -415,6 +430,7 @@ PROC commitHandler()
 
   IF StrLen(p) = 0
     IF c.handler
+      pushUndo()
       status('Handler cleared')
       markDirty()
     ENDIF
@@ -437,6 +453,7 @@ PROC commitHandler()
     RETURN
   ENDIF
 
+  pushUndo()
   c.handler := copyStr(p)
   markDirty()
   status('Handler set (Generate adds the stub)')
@@ -626,6 +643,7 @@ PROC openForm(path)
   form := nf
   filename := path
   dirty := FALSE
+  clearUndo()
   rebuildTree(form)
   refreshLive()
   loadCode()
@@ -897,6 +915,7 @@ PROC doAdd(idx)
                               'cyc', 'rad', 'sld', 'gau', 'lst'], idx)),
          ListItem([NIL, NIL, 'Button', 'Label', '', '',
                    'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three'], idx))
+  pushUndo()
   target.addChild(c)
   rebuildTree(c)
   markDirty()
@@ -913,6 +932,7 @@ PROC doDelete()
     RETURN
   ENDIF
   p := c.parent
+  pushUndo()
   p.removeChild(c)
   rebuildTree(p)
   markDirty()
@@ -929,6 +949,7 @@ PROC doMove(delta)
   i := p.indexOf(c)
   j := i + delta
   IF (j < 0) OR (j >= p.childCount()) THEN RETURN
+  pushUndo()
   p.removeChild(c)
   p.insertAt(c, j)
   rebuildTree(c)
@@ -937,6 +958,114 @@ ENDPROC
 
 /*** main ***/
 
+
+/*** undo and redo ***/
+
+-> Menu items 5 and 6 of each window's menus are Undo and Redo
+PROC updateUndoMenu()
+  DEF slot, undoItem, redoItem
+  FOR slot := 0 TO 3
+    undoItem := mItems[slot * MENUITEMS + 5]
+    redoItem := mItems[slot * MENUITEMS + 6]
+    IF undoTop > 0
+      set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
+    ELSE
+      set(undoItem, MUIA_Menuitem_Enabled, FALSE)
+    ENDIF
+    IF redoTop > 0
+      set(redoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
+    ELSE
+      set(redoItem, MUIA_Menuitem_Enabled, FALSE)
+    ENDIF
+  ENDFOR
+ENDPROC
+
+PROC clearRedo()
+  DEF i
+  FOR i := 0 TO redoTop - 1 DO freeTree(redoTrees[i])
+  redoTop := 0
+ENDPROC
+
+PROC clearUndo()
+  DEF i
+  FOR i := 0 TO undoTop - 1 DO freeTree(undoTrees[i])
+  undoTop := 0
+  clearRedo()
+  lastTitleEdited := NIL
+  updateUndoMenu()
+ENDPROC
+
+-> Call this just before changing the form
+PROC pushUndo()
+  DEF i
+  IF undoTop = UNDOMAX
+    -> forget the oldest
+    freeTree(undoTrees[0])
+    FOR i := 1 TO UNDOMAX - 1
+      undoTrees[i - 1] := undoTrees[i]
+      undoSel[i - 1] := undoSel[i]
+    ENDFOR
+    undoTop--
+  ENDIF
+  undoTrees[undoTop] := cloneTree(form)
+  undoSel[undoTop] := indexInTree(form, selected)
+  undoTop++
+  clearRedo()
+  lastTitleEdited := NIL
+  updateUndoMenu()
+ENDPROC
+
+-> Makes f the current form and selects the component at position selIdx
+PROC restoreForm(f: PTR TO component, selIdx)
+  DEF target: PTR TO component
+  form := f
+  selected := NIL
+  selectedNode := NIL
+  lastTitleEdited := NIL
+  target := NIL
+  IF selIdx >= 0 THEN target := componentAt(form, selIdx)
+  IF target = NIL THEN target := form
+  rebuildTree(target)
+  markDirty()
+  updateUndoMenu()
+ENDPROC
+
+PROC doUndo()
+  DEF i
+  commitEdits()
+  IF undoTop = 0
+    status('Nothing to undo')
+    RETURN
+  ENDIF
+  IF redoTop = UNDOMAX
+    freeTree(redoTrees[0])
+    FOR i := 1 TO UNDOMAX - 1
+      redoTrees[i - 1] := redoTrees[i]
+      redoSel[i - 1] := redoSel[i]
+    ENDFOR
+    redoTop--
+  ENDIF
+  redoTrees[redoTop] := form
+  redoSel[redoTop] := indexInTree(form, selected)
+  redoTop++
+  undoTop--
+  restoreForm(undoTrees[undoTop], undoSel[undoTop])
+  status('Undone')
+ENDPROC
+
+PROC doRedo()
+  commitEdits()
+  IF redoTop = 0
+    status('Nothing to redo')
+    RETURN
+  ENDIF
+  undoTrees[undoTop] := form
+  undoSel[undoTop] := indexInTree(form, selected)
+  undoTop++
+  redoTop--
+  restoreForm(redoTrees[redoTop], redoSel[redoTop])
+  status('Redone')
+ENDPROC
 
 PROC showCode()
   set(winCode, MUIA_Window_Open, MUI_TRUE)
@@ -989,7 +1118,7 @@ ENDPROC s
 -> belongs to the active window. The items are remembered in mItems (12 per
 -> window) so hookMenus() can connect them once the application exists.
 PROC makeMenu(slot)
-  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, base
+  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, base
   strip := MenustripObject,
     MUIA_Family_Child, MenuObjectT('Project'),
       MUIA_Family_Child, m1 := MenuitemObject,
@@ -1005,29 +1134,43 @@ PROC makeMenu(slot)
       MUIA_Family_Child, m5 := MenuitemObject,
         MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
     End,
-    MUIA_Family_Child, MenuObjectT('Build'),
+    MUIA_Family_Child, MenuObjectT('Edit'),
       MUIA_Family_Child, m6 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Undo', MUIA_Menuitem_Shortcut, 'Z', End,
+      MUIA_Family_Child, m7 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Redo', MUIA_Menuitem_Shortcut, 'Y', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, m8 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
+      MUIA_Family_Child, m9 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
+      MUIA_Family_Child, m10 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Move down', MUIA_Menuitem_Shortcut, 'J', End,
+    End,
+    MUIA_Family_Child, MenuObjectT('Build'),
+      MUIA_Family_Child, m11 := MenuitemObject,
         MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m7 := MenuitemObject,
+      MUIA_Family_Child, m12 := MenuitemObject,
         MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
-      MUIA_Family_Child, m8 := MenuitemObject,
+      MUIA_Family_Child, m13 := MenuitemObject,
         MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
-      MUIA_Family_Child, m9 := MenuitemObject,
+      MUIA_Family_Child, m14 := MenuitemObject,
         MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
     End,
     MUIA_Family_Child, MenuObjectT('Window'),
-      MUIA_Family_Child, m10 := MenuitemObject,
+      MUIA_Family_Child, m15 := MenuitemObject,
         MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
-      MUIA_Family_Child, m11 := MenuitemObject,
+      MUIA_Family_Child, m16 := MenuitemObject,
         MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
-      MUIA_Family_Child, m12 := MenuitemObject,
+      MUIA_Family_Child, m17 := MenuitemObject,
         MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
     End,
   End
   IF strip = NIL THEN Raise('Failed to create the menus')
-  base := slot * 12
+  base := slot * MENUITEMS
   mItems[base] := m1
   mItems[base + 1] := m2
   mItems[base + 2] := m3
@@ -1040,16 +1183,23 @@ PROC makeMenu(slot)
   mItems[base + 9] := m10
   mItems[base + 10] := m11
   mItems[base + 11] := m12
+  mItems[base + 12] := m13
+  mItems[base + 13] := m14
+  mItems[base + 14] := m15
+  mItems[base + 15] := m16
+  mItems[base + 16] := m17
 ENDPROC strip
+
 
 PROC hookMenus(windows)
   DEF ids, slot, k
   ids := [ID_NEW, ID_OPEN, ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
+          ID_UNDO, ID_REDO, ID_DELETE, ID_UP, ID_DOWN,
           ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
           ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE]
   FOR slot := 0 TO windows - 1
-    FOR k := 0 TO 11
-      hookMenu(mItems[slot * 12 + k], ListItem(ids, k))
+    FOR k := 0 TO MENUITEMS - 1
+      hookMenu(mItems[slot * MENUITEMS + k], ListItem(ids, k))
     ENDFOR
   ENDFOR
 ENDPROC
@@ -1383,6 +1533,7 @@ PROC main() HANDLE
     app, 2, MUIM_Application_ReturnID, ID_DOWN])
 
   hookMenus(4)
+  updateUndoMenu()
 
   -> toolbar buttons are numbered in order, spaces included; 0 = a space
   ids := [ID_NEW, ID_OPEN, ID_SAVE, 0, ID_PREVIEW, ID_GENERATE, 0, ID_COMPILE, ID_RUN]
@@ -1450,6 +1601,10 @@ PROC main() HANDLE
           doPreview()
         CASE ID_GENERATE
           doGenerate()
+        CASE ID_UNDO
+          doUndo()
+        CASE ID_REDO
+          doRedo()
         CASE ID_DELETE
           doDelete()
         CASE ID_UP

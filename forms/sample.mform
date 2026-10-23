@@ -5,6 +5,10 @@ Window MainForm "Hello DelphE"
     HGroup row
       Button btnOk "Test1234" @OnClick=btnOkClick :hint="Test"
       Button btnCancel "Cancel" :weight=0 :disabled
+      Text lbl1 "Label"
+      Button btn1 "Button"
+      Text lbl2 "Label"
+      String edt1 ""
     Cycle cyc1 "One|Two|Three"
     Radio rad1 "One|Two|Three"
     Slider sld1 "" :value=25

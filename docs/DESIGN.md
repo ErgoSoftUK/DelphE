@@ -142,12 +142,20 @@ they reopen where you left them.
   with New and Edit).
 - **Code window:** `TextEditor.mcc` showing the generated file, a read-only pane
   for compiler output, and Save Code, Reload, Compile and Run.
-- **Menus:** Project (New, Open, Save, Save As, Quit), Build (Preview, Generate,
-  Compile, Run) and Window (Form, Object Inspector, Code). An Amiga menu bar
+- **Menus:** Project (New, Open, Save, Save As, Quit), Edit (Undo, Redo, Delete,
+  Move up, Move down), Build (Preview, Generate, Compile, Run) and Window (Form,
+  Object Inspector, Code). An Amiga menu bar
   belongs to the active window, so every window gets its own copy.
 - Edits commit when you press Return, change the selection, or Save, Preview or
   Generate. Checkmarks and titles apply immediately.
 - A `*` in the window title marks unsaved changes; New, Open and Quit ask first.
+- **Undo / redo** keeps whole-form snapshots: just before each change the
+  form is deep-copied (`cloneTree`) onto an undo stack of up to 40, together
+  with the position of the selected component so it can be selected again.
+  Undo moves the live form onto the redo stack and restores the snapshot; any
+  new change clears redo. A run of edits to the same title is one step.
+  Strings are shared between copies, which is safe because they are replaced,
+  never edited in place. Opening a form clears both stacks.
 - Compile runs `ec <form> IGNORECACHE` in the form's folder, reads the output,
   and jumps to the line of the first error.
 
@@ -186,7 +194,6 @@ menus, file handling.
 
 Ideas, roughly in order of value:
 
-- Undo / redo in the designer.
 - Projects: several forms sharing one `main()`.
 - More properties (fonts, colours) and components (pages, menus, string lists).
 - A protected generated region in the editor.
