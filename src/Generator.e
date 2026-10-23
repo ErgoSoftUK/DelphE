@@ -38,9 +38,84 @@ ENDPROC
 
 -> E strings are single-quoted; \a is an apostrophe
 PROC quoted(fh, s)
+  DEF i, ch
+  IF s = NIL THEN s := ''
   put(fh, '\a')
-  put(fh, s)
+  FOR i := 0 TO StrLen(s) - 1
+    ch := s[i]
+    -> inside an E string literal an apostrophe is \a and a backslash is \\
+    IF ch = 39
+      put(fh, '\\a')
+    ELSEIF ch = 92
+      put(fh, '\\\\')
+    ELSE
+      Out(fh, ch)
+    ENDIF
+  ENDFOR
   put(fh, '\a')
+ENDPROC
+
+-> ", MUIA_Weight, 3"-style tag with a number
+PROC putPair(fh, text, n)
+  put(fh, text)
+  putNum(fh, n)
+ENDPROC
+
+-> Optional properties of a leaf widget as tags, each starting with ", "
+PROC emitLeafExtras(fh, c: PTR TO component)
+  DEF flags
+  flags := c.propFlags
+  IF flags AND PF_WEIGHT THEN putPair(fh, ', MUIA_Weight, ', c.weight)
+  IF flags AND PF_FIXW THEN putPair(fh, ', MUIA_FixWidth, ', c.fixW)
+  IF flags AND PF_FIXH THEN putPair(fh, ', MUIA_FixHeight, ', c.fixH)
+  IF flags AND PF_DISABLED THEN put(fh, ', MUIA_Disabled, MUI_TRUE')
+  IF flags AND PF_HINT
+    put(fh, ', MUIA_ShortHelp, ')
+    quoted(fh, c.hint)
+  ENDIF
+ENDPROC
+
+-> Optional properties of a group, one tag per line, each ending with a comma
+PROC emitGroupExtras(fh, c: PTR TO component, depth)
+  DEF flags
+  flags := c.propFlags
+  IF flags AND PF_WEIGHT
+    indent(fh, depth + 1)
+    putPair(fh, 'MUIA_Weight, ', c.weight)
+    put(fh, ',\n')
+  ENDIF
+  IF flags AND PF_FIXW
+    indent(fh, depth + 1)
+    putPair(fh, 'MUIA_FixWidth, ', c.fixW)
+    put(fh, ',\n')
+  ENDIF
+  IF flags AND PF_FIXH
+    indent(fh, depth + 1)
+    putPair(fh, 'MUIA_FixHeight, ', c.fixH)
+    put(fh, ',\n')
+  ENDIF
+  IF flags AND PF_DISABLED
+    indent(fh, depth + 1)
+    put(fh, 'MUIA_Disabled, MUI_TRUE,\n')
+  ENDIF
+  IF flags AND PF_HINT
+    indent(fh, depth + 1)
+    put(fh, 'MUIA_ShortHelp, ')
+    quoted(fh, c.hint)
+    put(fh, ',\n')
+  ENDIF
+  IF flags AND PF_FRAME
+    indent(fh, depth + 1)
+    put(fh, 'MUIA_Frame, MUIV_Frame_Group,\n')
+    IF c.title
+      IF StrLen(c.title) > 0
+        indent(fh, depth + 1)
+        put(fh, 'MUIA_FrameTitle, ')
+        quoted(fh, c.title)
+        put(fh, ',\n')
+      ENDIF
+    ENDIF
+  ENDIF
 ENDPROC
 
 PROC beginMark() IS '->>> DELPHE BEGIN'
@@ -69,19 +144,39 @@ PROC leafExpr(fh, c: PTR TO component)
   kind := c.kind
   SELECT kind
     CASE CK_BUTTON
-      put(fh, 'SimpleButton(')
-      quoted(fh, c.title)
-      put(fh, ')')
+      IF c.propFlags = 0
+        put(fh, 'SimpleButton(')
+        quoted(fh, c.title)
+        put(fh, ')')
+      ELSE
+        -> SimpleButton() takes no tags, so spell the button out
+        put(fh, 'TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, ')
+        quoted(fh, c.title)
+        put(fh, ', MUIA_Text_PreParse, \a\\ec\a, MUIA_InputMode, MUIV_InputMode_RelVerify, ')
+        put(fh, 'MUIA_Background, MUII_ButtonBack')
+        emitLeafExtras(fh, c)
+        put(fh, ', End')
+      ENDIF
     CASE CK_TEXT
       put(fh, 'TextObject, TextFrame, MUIA_Text_Contents, ')
       quoted(fh, c.title)
+      emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_STRING
       put(fh, 'StringObject, StringFrame, MUIA_String_Contents, ')
       quoted(fh, c.title)
+      emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_CHECK
-      put(fh, 'CheckMark(FALSE)')
+      IF c.propFlags = 0
+        put(fh, 'CheckMark(FALSE)')
+      ELSE
+        put(fh, 'ImageObject, ImageButtonFrame, MUIA_InputMode, MUIV_InputMode_Toggle, ')
+        put(fh, 'MUIA_Image_Spec, MUII_CheckMark, MUIA_Image_FreeVert, MUI_TRUE, ')
+        put(fh, 'MUIA_Selected, FALSE, MUIA_Background, MUII_ButtonBack, MUIA_ShowSelState, FALSE')
+        emitLeafExtras(fh, c)
+        put(fh, ', End')
+      ENDIF
   ENDSELECT
 ENDPROC
 
@@ -134,9 +229,11 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       ENDIF
     CASE CK_VGROUP
       put(fh, 'VGroup,\n')
+      emitGroupExtras(fh, c, depth)
       emitChildren(fh, c, depth)
     CASE CK_HGROUP
       put(fh, 'HGroup,\n')
+      emitGroupExtras(fh, c, depth)
       emitChildren(fh, c, depth)
   ENDSELECT
 

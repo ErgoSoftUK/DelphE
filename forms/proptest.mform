@@ -1,0 +1,8 @@
+Window PropTest "Prop Test"
+  VGroup root :frame :weight=50
+    Text lblName "Don't \ break" :hint="A hint"
+    String edtName "" :fixw=200
+    HGroup row :frame
+      Button btnOk "OK" @OnClick=btnOkClick :weight=0 :disabled :hint="Press me"
+      Button btnCancel "Cancel"
+      Check chkOne :hint="Tick"

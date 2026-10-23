@@ -19,6 +19,15 @@ PROC put(fh, s) IS Write(fh, s, StrLen(s))
 
 /*** writer ***/
 
+PROC putProp(fh, prefix, n)
+  DEF s
+  put(fh, prefix)
+  s := String(16)
+  StringF(s, '\d', n)
+  put(fh, s)
+  DisposeLink(s)
+ENDPROC
+
 PROC writeForm(fh, c: PTR TO component, depth)
   DEF i, ch: PTR TO component
   FOR i := 1 TO depth DO put(fh, '  ')
@@ -38,6 +47,16 @@ PROC writeForm(fh, c: PTR TO component, depth)
       put(fh, c.handler)
     ENDIF
   ENDIF
+  IF c.propFlags AND PF_WEIGHT THEN putProp(fh, ' :weight=', c.weight)
+  IF c.propFlags AND PF_FIXW THEN putProp(fh, ' :fixw=', c.fixW)
+  IF c.propFlags AND PF_FIXH THEN putProp(fh, ' :fixh=', c.fixH)
+  IF c.propFlags AND PF_DISABLED THEN put(fh, ' :disabled')
+  IF c.propFlags AND PF_FRAME THEN put(fh, ' :frame')
+  IF c.propFlags AND PF_HINT
+    put(fh, ' :hint=\q')
+    put(fh, c.hint)
+    put(fh, '\q')
+  ENDIF
   put(fh, '\n')
   ch := c.firstChild
   WHILE ch
@@ -51,7 +70,7 @@ ENDPROC
 -> Returns the next token (a new E-string, or NIL at end of line) and the
 -> position after it. A token in double quotes may contain spaces.
 PROC nextToken(line, pos)
-  DEF len, start, tok
+  DEF len, start, tok, inq
   len := StrLen(line)
   WHILE (pos < len) AND (line[pos] = " ") DO pos++
   IF pos >= len THEN RETURN NIL, pos, FALSE
@@ -68,7 +87,11 @@ PROC nextToken(line, pos)
   ENDIF
 
   start := pos
-  WHILE (pos < len) AND (line[pos] <> " ") DO pos++
+  inq := FALSE
+  WHILE (pos < len) AND ((line[pos] <> " ") OR inq)
+    IF line[pos] = 34 THEN inq := (inq = FALSE)
+    pos++
+  ENDWHILE
   tok := String(pos - start + 1)
   MidStr(tok, line, start, pos - start)
 ENDPROC tok, pos, FALSE
@@ -84,10 +107,64 @@ PROC eventHandler(tok)
   MidStr(h, tok, eq + 1, n)
 ENDPROC h
 
+-> ":name" or ":name=value": does tok name this property?
+PROC tokIs(tok, name)
+  DEF n
+  n := StrLen(name)
+  IF StrLen(tok) < (n + 1) THEN RETURN FALSE
+  IF StrCmp(tok + 1, name, n) = FALSE THEN RETURN FALSE
+  IF tok[n + 1] = 0 THEN RETURN TRUE
+  IF tok[n + 1] = "=" THEN RETURN TRUE
+ENDPROC FALSE
+
+PROC tokNumber(tok)
+  DEF eq, n
+  eq := InStr(tok, '=')
+  IF eq < 0 THEN RETURN 0
+  n := Val(tok + eq + 1)
+ENDPROC n
+
+-> the value after '=', without surrounding double quotes
+PROC tokString(tok)
+  DEF eq, n, h
+  eq := InStr(tok, '=')
+  IF eq < 0 THEN RETURN String(2)
+  n := StrLen(tok) - eq - 1
+  IF n >= 2
+    IF (tok[eq + 1] = 34) AND (tok[StrLen(tok) - 1] = 34)
+      h := String(n)
+      IF n > 2 THEN MidStr(h, tok, eq + 2, n - 2)
+      RETURN h
+    ENDIF
+  ENDIF
+  h := String(n + 1)
+  IF n > 0 THEN MidStr(h, tok, eq + 1, n)
+ENDPROC h
+
+PROC applyProp(c: PTR TO component, tok)
+  IF tokIs(tok, 'weight')
+    c.weight := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_WEIGHT
+  ELSEIF tokIs(tok, 'fixw')
+    c.fixW := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_FIXW
+  ELSEIF tokIs(tok, 'fixh')
+    c.fixH := tokNumber(tok)
+    c.propFlags := c.propFlags OR PF_FIXH
+  ELSEIF tokIs(tok, 'disabled')
+    c.propFlags := c.propFlags OR PF_DISABLED
+  ELSEIF tokIs(tok, 'frame')
+    c.propFlags := c.propFlags OR PF_FRAME
+  ELSEIF tokIs(tok, 'hint')
+    c.hint := tokString(tok)
+    c.propFlags := c.propFlags OR PF_HINT
+  ENDIF
+ENDPROC
+
 -> Reads a form; returns the window component, or NIL on error.
 PROC readForm(filename)
   DEF fh, line, lineNo, pos, level, kindTok, nameTok, titleTok, kind, i
-  DEF handlerTok, tok, quoted
+  DEF handlerTok, tok, quoted, propToks
   DEF c: PTR TO component, win: PTR TO component, parent: PTR TO component
   DEF stack[MAXDEPTH]: ARRAY OF LONG
 
@@ -117,6 +194,7 @@ PROC readForm(filename)
       -> the rest: a quoted title and/or an unquoted @Event=handler
       titleTok := NIL
       handlerTok := NIL
+      propToks := List(16)
       REPEAT
         tok, pos, quoted := nextToken(line, pos)
         IF tok
@@ -124,6 +202,8 @@ PROC readForm(filename)
             titleTok := tok
           ELSEIF tok[0] = "@"
             handlerTok := eventHandler(tok)
+          ELSEIF tok[0] = ":"
+            IF ListLen(propToks) < 16 THEN ListAdd(propToks, [tok], 1)
           ELSEIF titleTok = NIL
             titleTok := tok
           ENDIF
@@ -155,6 +235,9 @@ PROC readForm(filename)
 
       c := newComponent(kind, nameTok, titleTok)
       c.handler := handlerTok
+      FOR i := 0 TO ListLen(propToks) - 1
+        applyProp(c, ListItem(propToks, i))
+      ENDFOR
       IF level = 0
         IF kind <> CK_WINDOW
           WriteF('\s line \d: the first component must be a Window\n', filename, lineNo)

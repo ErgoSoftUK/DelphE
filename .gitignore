@@ -8,8 +8,10 @@ build.stop
 gentest.out
 src/Preview
 src/designer/Designer
-src/Designer
 src/mcc/*.m
 *.bak
 src/MainForm
 src/mainform
+watch.log
+forms/mainform
+.idea

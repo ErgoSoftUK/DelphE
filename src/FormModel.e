@@ -10,6 +10,9 @@ OPT EXPORT
 
 ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK
 
+-> which optional properties a component sets (propFlags); 0 = all defaults
+CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32
+
 OBJECT component
   kind
   name
@@ -19,6 +22,11 @@ OBJECT component
   lastChild:  PTR TO component
   next:       PTR TO component
   handler                             -> name of the event handler procedure, or NIL
+  propFlags                           -> PF_ bits
+  weight                              -> MUIA_Weight (PF_WEIGHT)
+  fixW                                -> MUIA_FixWidth (PF_FIXW)
+  fixH                                -> MUIA_FixHeight (PF_FIXH)
+  hint                                -> MUIA_ShortHelp (PF_HINT)
   uiNode                              -> designer's tree node for this component
 ENDOBJECT
 
