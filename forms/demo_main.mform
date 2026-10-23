@@ -1,0 +1,4 @@
+Window DemoMain "Project main"
+  VGroup root
+    Text lblHello "Main form"
+    Button btnOther "Open settings" @OnClick=btnOtherClick

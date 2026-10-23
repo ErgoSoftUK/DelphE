@@ -171,6 +171,66 @@ they reopen where you left them.
 - Compile runs `ec <form> IGNORECACHE` in the form's folder, reads the output,
   and jumps to the line of the first error.
 
+### How Designer.e is organised
+
+`Designer.e` is one program with shared state: the windows and gadgets, the form
+being edited and the project are global variables, because E modules can only
+share globals through matching `EXPORT DEF`s in every module, and a missed one
+silently becomes a private copy. So the file is kept in sections instead, each
+introduced by a `/*** ... ***/` comment:
+
+- the tree and inspector (`addTree`, `onSelect`, `commitName`, `commitProps`, ...)
+- files, undo and redo, drag and drop, projects, compile and run
+- building the program: `makeTree`, `makeEditors`, `makeToolbars`, one
+  `make...Window` per window, `makeApplication`, `connectEvents`, `openWindows`
+- the loop: `handleId` (one return ID) and `mainLoop`; `main` just calls these
+  in order and cleans up
+
+Anything that needs no global state lives in a module instead: string and file
+helpers in `Util.e` (`validIdent`, `isNumber`, `cleanOutput`, `imagePath`, path
+functions, the file requester), and model queries in `FormModel.e` (`nameTaken`,
+`cloneTree`, `indexInTree`, ...).
+
+## Projects
+
+A **project** (`.mproj`, read and written by `Project.e`) is a program with
+several forms:
+
+```
+Project "Demo"
+Form "demo_main.mform"
+Form "demo_settings.mform"
+```
+
+Form paths are relative to the project file. The first is the main form.
+
+**One file, all the forms.** `generateProject` writes a single program, because
+E modules cannot import each other and a handler of one form must be able to
+reach another (`fmDemoSettings.show()`). Regions, in file order:
+
+1. `type <Form>`: the `OBJECT` of each form
+2. `globals`: `DEF delpheApp, fmA: PTR TO tA, ...` (a global `DEF` must come
+   before any procedure, and after the `OBJECT` it uses)
+3. `form <Form>`: `create`, `connect`, `handleEvent`, `show`, `hide` of each form
+4. `project`: `delpheRun()`, which creates every form, builds the application
+   with all the windows, connects them, shows the main form and runs the loop
+5. your code, ending with `main()`, which calls `delpheRun()`
+
+Regions are found by their marker lines (`->>> DELPHE BEGIN form Name |`). The
+trailing `|` stops `Main` matching `MainForm`. Regeneration replaces each region
+in place, inserts the regions of a new form before `globals` / `project`, and
+appends stubs for new handlers; the previous file is kept as `.bak`.
+
+**Event numbers** are relative to a per-form `idBase` (1000, 2000, ...), so
+several forms can share the one main loop: every form's `handleEvent` is called
+with each id and only reacts to its own range.
+
+**In the designer** one form is edited at a time and the project keeps all the
+forms in memory (`projForms`, `projPaths`). The Project window lists them. Save
+writes every form and the project file. Undo history is per form: it is cleared
+when you switch. Removing a form leaves its old regions in the generated file.
+A project holds at most 16 forms.
+
 ## Building and testing
 
 `Build` compiles everything and runs `GenTest`, which reads `forms/sample.mform`,

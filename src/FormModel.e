@@ -228,3 +228,17 @@ PROC componentAt(root: PTR TO component, n)
     n--
   ENDWHILE
 ENDPROC c
+
+PROC nameTaken(c: PTR TO component, name, except: PTR TO component)
+  DEF ch: PTR TO component
+  IF c <> except
+    IF StrLen(c.name) = StrLen(name)
+      IF StrCmp(c.name, name, ALL) THEN RETURN TRUE
+    ENDIF
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    IF nameTaken(ch, name, except) THEN RETURN TRUE
+    ch := ch.next
+  ENDWHILE
+ENDPROC FALSE

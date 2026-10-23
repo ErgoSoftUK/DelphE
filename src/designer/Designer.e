@@ -13,20 +13,27 @@ OPT LARGE
 
 MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
-       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util',
+       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
-     ID_ADD, ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
+     ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
-     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP
+     ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
+     ID_NEWPROJ, ID_OPENPROJ, ID_SHOWPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
 
-CONST UNDOMAX = 40, MENUITEMS = 17
+CONST UNDOMAX = 40, MENUITEMS = 20
 
-DEF mItems[80]: ARRAY OF LONG
+DEF mItems[100]: ARRAY OF LONG
+
+-> the project: several forms in one program (projectPath is NIL for a single form)
+DEF projectPath, projectName, projCount, projCur, lstForms, winProj,
+    btnFormNew, btnFormAdd, btnFormRemove, btnFormMain,
+    projPaths[16]: ARRAY OF LONG, projForms[16]: ARRAY OF LONG,
+    candPaths[16]: ARRAY OF LONG, candForms[16]: ARRAY OF LONG, candCount, candName
 
 DEF treeMcc: PTR TO mui_customclass
 
@@ -39,14 +46,13 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
 DEF winInsp, winForm, winCode, liveHolder, liveObj, liveStale, actionsBar, paletteBar,
     inspPages, inspTitles, actionsDef, paletteDef,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
-    btnSave, btnPreview, previewWin,
+    previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
-    pages, pageTitles, editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
+    editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
     logEditor, logSlider, btnCompile, btnRun,
     strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, numBuf,
-    menu, miNew, miOpen, miSave, miSaveAs, miQuit, miPreview, miGenerate, miCompile, miRun,
     dirty, titleBuf1, titleBuf2, titleFlip,
-    cycKind, btnAdd, btnDelete, btnUp, btnDown, btnGenerate, kindNames,
+    btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
     selected: PTR TO component, selectedNode
 
@@ -72,7 +78,8 @@ PROC addTree(c: PTR TO component, parentNode)
   IF isContainer(c.kind) THEN flags := TNF_LIST OR TNF_OPEN ELSE flags := 0
   node := doMethodA(tree, [MUIM_Listtree_Insert, label, c, parentNode,
                            MUIV_Listtree_Insert_PrevNode_Tail, flags])
-  -> label is deliberately not freed: the tree may keep the pointer
+  -> label is deliberately not freed: the tree may keep the pointer (freeing it
+  -> is suspected of corrupting strings that reuse the memory)
   c.uiNode := node
   ch := c.firstChild
   WHILE ch
@@ -213,18 +220,6 @@ PROC setEnabled(gadget, enabled)
   ENDIF
 ENDPROC
 
--> a whole number, optionally negative
-PROC isNumber(s)
-  DEF i, first
-  IF StrLen(s) = 0 THEN RETURN FALSE
-  first := 0
-  IF s[0] = "-" THEN first := 1
-  IF first >= StrLen(s) THEN RETURN FALSE
-  FOR i := first TO StrLen(s) - 1
-    IF (s[i] < "0") OR (s[i] > "9") THEN RETURN FALSE
-  ENDFOR
-ENDPROC TRUE
-
 -> Reads one number gadget: returns its flag bit (0 = blank) and the value;
 -> bad input gives -1 as the value.
 PROC readNumber(gadget, bit)
@@ -234,6 +229,20 @@ PROC readNumber(gadget, bit)
   IF isNumber(p) = FALSE THEN RETURN 0, 0, FALSE
   v := Val(p)
 ENDPROC bit, v, TRUE
+
+-> readNumber() for commitProps: on bad input it says so, shows the component's
+-> properties again and returns ok = FALSE
+PROC readNumberOrComplain(gadget, bit, what, c: PTR TO component)
+  DEF b, v, ok, msg
+  b, v, ok := readNumber(gadget, bit)
+  IF ok = FALSE
+    msg := String(StrLen(what) + 32)
+    StrCopy(msg, what, ALL)
+    StrAdd(msg, ' must be a whole number', ALL)
+    status(msg)
+    showProps(c)
+  ENDIF
+ENDPROC b, v, ok
 
 -> Applies the property gadgets to the selected component
 PROC commitProps()
@@ -245,52 +254,28 @@ PROC commitProps()
 
   nf := 0
 
-  bit, v, ok := readNumber(strWeight, PF_WEIGHT)
-  IF ok = FALSE
-    status('Weight must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strWeight, PF_WEIGHT, 'Weight', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nw := v
-  bit, v, ok := readNumber(strFixW, PF_FIXW)
-  IF ok = FALSE
-    status('Fixed width must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strFixW, PF_FIXW, 'Fixed width', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nfx := v
-  bit, v, ok := readNumber(strFixH, PF_FIXH)
-  IF ok = FALSE
-    status('Fixed height must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strFixH, PF_FIXH, 'Fixed height', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nfy := v
-  bit, v, ok := readNumber(strMin, PF_MIN)
-  IF ok = FALSE
-    status('Minimum must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strMin, PF_MIN, 'Minimum', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nmn := v
-  bit, v, ok := readNumber(strMax, PF_MAX)
-  IF ok = FALSE
-    status('Maximum must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strMax, PF_MAX, 'Maximum', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nmx := v
-  bit, v, ok := readNumber(strValue, PF_VALUE)
-  IF ok = FALSE
-    status('Value must be a whole number')
-    showProps(c)
-    RETURN
-  ENDIF
+  bit, v, ok := readNumberOrComplain(strValue, PF_VALUE, 'Value', c)
+  IF ok = FALSE THEN RETURN
   nf := nf OR bit
   nvl := v
 
@@ -333,33 +318,6 @@ PROC commitProps()
   status('Properties updated')
 ENDPROC
 
--> letters, digits and underscore only
-PROC validIdent(s)
-  DEF i, ch
-  IF StrLen(s) = 0 THEN RETURN FALSE
-  FOR i := 0 TO StrLen(s) - 1
-    ch := s[i]
-    IF ((ch >= "a") AND (ch <= "z")) OR ((ch >= "A") AND (ch <= "Z")) OR ((ch >= "0") AND (ch <= "9")) OR (ch = "_")
-    ELSE
-      RETURN FALSE
-    ENDIF
-  ENDFOR
-ENDPROC TRUE
-
-PROC nameTaken(c: PTR TO component, name, except: PTR TO component)
-  DEF ch: PTR TO component
-  IF c <> except
-    IF StrLen(c.name) = StrLen(name)
-      IF StrCmp(c.name, name, ALL) THEN RETURN TRUE
-    ENDIF
-  ENDIF
-  ch := c.firstChild
-  WHILE ch
-    IF nameTaken(ch, name, except) THEN RETURN TRUE
-    ch := ch.next
-  ENDWHILE
-ENDPROC FALSE
-
 -> Applies the Name gadget to the selected component (on Enter, when the
 -> selection changes, and before Save/Preview).
 PROC commitName()
@@ -394,6 +352,7 @@ PROC commitName()
   label := makeLabel(c)
   doMethodA(tree, [MUIM_Listtree_Rename, selectedNode, label, 0])
   markDirty()
+  IF c.kind = CK_WINDOW THEN refreshProjectList()
   status('Renamed')
 ENDPROC
 
@@ -483,31 +442,53 @@ ENDPROC
 /*** actions ***/
 
 PROC doSave()
-  DEF fh
+  DEF fh, i, p
   commitEdits()
   saveCode()
-  fh := Open(filename, MODE_NEWFILE)
-  IF fh = NIL
-    status('Could not write the file')
-    RETURN
+  IF projectPath
+    -> a project saves every form and the project file
+    syncCurrent()
+    FOR i := 0 TO projCount - 1
+      p := joinPath(dirPart(projectPath), projPaths[i])
+      fh := Open(p, MODE_NEWFILE)
+      IF fh = NIL
+        status('Could not write a form file')
+        RETURN
+      ENDIF
+      writeForm(fh, projForms[i], 0)
+      Close(fh)
+    ENDFOR
+    IF writeProjectFile(projectPath, projectName, projPaths, projCount) = FALSE
+      status('Could not write the project file')
+      RETURN
+    ENDIF
+  ELSE
+    fh := Open(filename, MODE_NEWFILE)
+    IF fh = NIL
+      status('Could not write the file')
+      RETURN
+    ENDIF
+    writeForm(fh, form, 0)
+    Close(fh)
   ENDIF
-  writeForm(fh, form, 0)
-  Close(fh)
   dirty := FALSE
   updateTitle()
   status('Saved')
 ENDPROC
 
 -> The generated unit goes next to the .mform file, named after the window
+PROC programName()
+  IF projectPath THEN RETURN projectName
+ENDPROC form.name
+
+-> The generated program goes next to the form (or the project file), named
+-> after the window (or the project)
 PROC outputPath()
-  DEF p, n, s
-  p := PathPart(filename)
-  n := p - filename
-  -> PathPart() points at the final '/', which belongs to the directory part
-  IF filename[n] = "/" THEN n++
-  s := String(n + StrLen(form.name) + 8)
-  IF n > 0 THEN StrCopy(s, filename, n)
-  StrAdd(s, form.name, ALL)
+  DEF dir, s
+  dir := outputDir()
+  s := String(StrLen(dir) + StrLen(programName()) + 8)
+  StrCopy(s, dir, ALL)
+  StrAdd(s, programName(), ALL)
   StrAdd(s, '.e', ALL)
 ENDPROC s
 
@@ -557,7 +538,11 @@ PROC regenerate()
   commitEdits()
   saveCode()
   path := outputPath()
-  res := generateFile(path, form)
+  IF projectPath
+    res := generateProjectNow(path)
+  ELSE
+    res := generateFile(path, form)
+  ENDIF
   IF res = GEN_WRITEFAIL
     status('Could not write the generated file')
   ELSEIF res = GEN_NOMARKERS
@@ -605,7 +590,12 @@ PROC updateTitle()
     titleFlip := TRUE
   ENDIF
   StrCopy(buf, 'DelphE Designer - ', ALL)
-  StrAdd(buf, FilePart(filename), ALL)
+  IF projectPath
+    StrAdd(buf, projectName, ALL)
+    StrAdd(buf, ' (project)', ALL)
+  ELSE
+    StrAdd(buf, FilePart(filename), ALL)
+  ENDIF
   IF dirty THEN StrAdd(buf, ' *', ALL)
   set(win, MUIA_Window_Title, buf)
 ENDPROC
@@ -642,12 +632,15 @@ PROC openForm(path)
   ENDIF
   saveCode()
   closePreview()
+  projectPath := NIL
+  projCount := 0
   form := nf
   filename := path
   dirty := FALSE
   clearUndo()
   rebuildTree(form)
   refreshLive()
+  refreshProjectList()
   loadCode()
   updateTitle()
   status('Form opened')
@@ -655,6 +648,10 @@ ENDPROC
 
 PROC doOpen()
   DEF path
+  IF projectPath
+    addExistingForm()
+    RETURN
+  ENDIF
   IF confirmDiscard() = FALSE THEN RETURN
   path := askFile('Open a form', FALSE, outputDir(), '')
   IF path = NIL THEN RETURN
@@ -671,6 +668,10 @@ ENDPROC r = 1
 
 PROC doNew()
   DEF path, w: PTR TO component, root: PTR TO component, fh
+  IF projectPath
+    addNewForm()
+    RETURN
+  ENDIF
   IF confirmDiscard() = FALSE THEN RETURN
   path := askFile('Create a new form', TRUE, outputDir(), '')
   IF path = NIL THEN RETURN
@@ -694,6 +695,10 @@ ENDPROC
 PROC doSaveAs()
   DEF path
   commitEdits()
+  IF projectPath
+    status('In a project, Save writes every form; Save As is for single forms')
+    RETURN
+  ENDIF
   path := askFile('Save the form as', TRUE, outputDir(), FilePart(filename))
   IF path = NIL THEN RETURN
   IF okToOverwrite(path) = FALSE THEN RETURN
@@ -705,17 +710,297 @@ PROC doSaveAs()
   updateTitle()
 ENDPROC
 
+/*** projects ***/
+
+-> The forms are edited one at a time; projForms keeps all of them. Undo and
+-> redo can swap the current tree, so it is copied back before it is used.
+PROC syncCurrent()
+  IF projectPath THEN projForms[projCur] := form
+ENDPROC
+
+PROC projectDir() IS dirPart(projectPath)
+
+-> The program is made of every form of the project, the main form first
+PROC generateProjectNow(path)
+  DEF forms, i
+  syncCurrent()
+  forms := List(projCount)
+  FOR i := 0 TO projCount - 1 DO ListAdd(forms, [projForms[i]], 1)
+ENDPROC generateProject(path, projectName, forms, projCount)
+
+-> The Project window's list: the forms by window name, the main form first
+PROC refreshProjectList()
+  DEF i, n, label, w: PTR TO component
+  doMethodA(lstForms, [MUIM_List_Clear])
+  n := 1
+  IF projectPath THEN n := projCount
+  FOR i := 0 TO n - 1
+    w := form
+    IF projectPath THEN w := projForms[i]
+    label := String(StrLen(w.name) + 12)
+    StrCopy(label, w.name, ALL)
+    IF i = 0 THEN StrAdd(label, ' (main)', ALL)
+    doMethodA(lstForms, [MUIM_List_InsertSingle, label, MUIV_List_Insert_Bottom])
+  ENDFOR
+  IF projectPath THEN set(lstForms, MUIA_List_Active, projCur) ELSE set(lstForms, MUIA_List_Active, 0)
+ENDPROC
+
+-> Makes form i of the project the one being edited
+PROC loadFormIndex(i)
+  closePreview()
+  projCur := i
+  form := projForms[i]
+  filename := joinPath(projectDir(), projPaths[i])
+  selected := NIL
+  selectedNode := NIL
+  clearUndo()
+  rebuildTree(form)
+  refreshLive()
+  updateTitle()
+  IF lstForms THEN set(lstForms, MUIA_List_Active, i)
+ENDPROC
+
+PROC switchForm(i)
+  commitEdits()
+  syncCurrent()
+  IF i = projCur THEN RETURN
+  loadFormIndex(i)
+  status('Form switched (undo history is per form and starts again)')
+ENDPROC
+
+PROC onFormSelect()
+  DEF i
+  IF projectPath = NIL THEN RETURN
+  get(lstForms, MUIA_List_Active, {i})
+  IF (i >= 0) AND (i < projCount) AND (i <> projCur) THEN switchForm(i)
+ENDPROC
+
+-> Is a form with this window name already in the project?
+PROC windowNameTaken(name)
+  DEF i, w: PTR TO component
+  FOR i := 0 TO projCount - 1
+    w := projForms[i]
+    IF same(w.name, name) THEN RETURN TRUE
+  ENDFOR
+ENDPROC FALSE
+
+-> name, or name2, name3 ... if that is taken
+PROC uniqueFormName(name)
+  DEF n, s
+  IF windowNameTaken(name) = FALSE THEN RETURN name
+  s := String(StrLen(name) + 12)
+  n := 2
+  REPEAT
+    StringF(s, '\s\d', name, n)
+    n++
+  UNTIL windowNameTaken(s) = FALSE
+ENDPROC s
+
+-> A new form: a window with a group and a label
+PROC makeStarterForm(name)
+  DEF w: PTR TO component, root: PTR TO component
+  w := newComponent(CK_WINDOW, name, 'New Form')
+  root := newComponent(CK_VGROUP, 'root', NIL)
+  w.addChild(root)
+  root.addChild(newComponent(CK_TEXT, 'lblHello', 'Hello'))
+ENDPROC w
+
+PROC addFormToProject(path, model)
+  syncCurrent()
+  projPaths[projCount] := relPath(projectDir(), path)
+  projForms[projCount] := model
+  projCount++
+  refreshProjectList()
+  commitEdits()
+  loadFormIndex(projCount - 1)
+  markDirty()
+ENDPROC
+
+PROC addNewForm()
+  DEF path, w, fh
+  IF projCount >= MAXFORMS
+    status('A project holds at most 16 forms')
+    RETURN
+  ENDIF
+  path := askFile('Create a new form', TRUE, projectDir(), '')
+  IF path = NIL THEN RETURN
+  IF okToOverwrite(path) = FALSE THEN RETURN
+  w := makeStarterForm(uniqueFormName(nameFromPath(path)))
+  fh := Open(path, MODE_NEWFILE)
+  IF fh = NIL
+    status('Could not create the file')
+    RETURN
+  ENDIF
+  writeForm(fh, w, 0)
+  Close(fh)
+  addFormToProject(path, w)
+  status('Form added to the project')
+ENDPROC
+
+PROC addExistingForm()
+  DEF path, nf: PTR TO component
+  IF projCount >= MAXFORMS
+    status('A project holds at most 16 forms')
+    RETURN
+  ENDIF
+  path := askFile('Add a form to the project', FALSE, projectDir(), '')
+  IF path = NIL THEN RETURN
+  nf := readForm(path)
+  IF nf = NIL
+    status('Could not read that form (details on the console)')
+    RETURN
+  ENDIF
+  IF windowNameTaken(nf.name)
+    status('A form with that window name is already in the project')
+    RETURN
+  ENDIF
+  addFormToProject(path, nf)
+  status('Form added to the project')
+ENDPROC
+
+PROC doRemoveForm()
+  DEF r, i, next
+  IF projectPath = NIL
+    status('Open or create a project first')
+    RETURN
+  ENDIF
+  IF projCount <= 1
+    status('A project needs at least one form')
+    RETURN
+  ENDIF
+  r := EasyRequestArgs(NIL, [20, 0, 'DelphE Designer',
+         'Remove this form from the project? Its file is kept.', 'Remove|Cancel'], NIL, NIL)
+  IF r <> 1 THEN RETURN
+  commitEdits()
+  syncCurrent()
+  FOR i := projCur TO projCount - 2
+    projPaths[i] := projPaths[i + 1]
+    projForms[i] := projForms[i + 1]
+  ENDFOR
+  projCount--
+  next := projCur
+  IF next >= projCount THEN next := projCount - 1
+  refreshProjectList()
+  loadFormIndex(next)
+  markDirty()
+  status('Form removed (generate again; its old code stays in the file)')
+ENDPROC
+
+-> The main form is the first one: it opens first and closing it ends the program
+PROC doMakeMain()
+  DEF p, f
+  IF projectPath = NIL
+    status('Open or create a project first')
+    RETURN
+  ENDIF
+  commitEdits()
+  syncCurrent()
+  IF projCur = 0 THEN RETURN
+  p := projPaths[0]
+  f := projForms[0]
+  projPaths[0] := projPaths[projCur]
+  projForms[0] := projForms[projCur]
+  projPaths[projCur] := p
+  projForms[projCur] := f
+  projCur := 0
+  refreshProjectList()
+  markDirty()
+  status('Main form changed')
+ENDPROC
+
+-> Reads a project file and all its forms into the cand... variables
+PROC loadCandidate(path)
+  DEF name, count, i, dir, p, nf
+  name, count := readProjectFile(path, candPaths, MAXFORMS)
+  IF name = NIL THEN RETURN FALSE
+  IF count < 1
+    WriteF('\s has no forms\n', path)
+    RETURN FALSE
+  ENDIF
+  dir := dirPart(path)
+  FOR i := 0 TO count - 1
+    p := joinPath(dir, candPaths[i])
+    nf := readForm(p)
+    IF nf = NIL THEN RETURN FALSE
+    candForms[i] := nf
+  ENDFOR
+  candName := name
+  candCount := count
+ENDPROC TRUE
+
+PROC adoptCandidate(path)
+  DEF i
+  projectPath := path
+  projectName := candName
+  projCount := candCount
+  FOR i := 0 TO candCount - 1
+    projPaths[i] := candPaths[i]
+    projForms[i] := candForms[i]
+  ENDFOR
+  projCur := 0
+ENDPROC
+
+PROC openProject(path)
+  IF loadCandidate(path) = FALSE
+    status('Could not read that project (details on the console)')
+    RETURN
+  ENDIF
+  saveCode()
+  closePreview()
+  adoptCandidate(path)
+  dirty := FALSE
+  refreshProjectList()
+  loadFormIndex(0)
+  loadCode()
+  updateTitle()
+  status('Project opened')
+ENDPROC
+
+PROC doOpenProject()
+  DEF path
+  IF confirmDiscard() = FALSE THEN RETURN
+  path := askFileEx('Open a project', FALSE, outputDir(), '', '#?.mproj', '.mproj')
+  IF path = NIL THEN RETURN
+  openProject(path)
+ENDPROC
+
+PROC doNewProject()
+  DEF path, name, formPath, w, fh, paths[1]: ARRAY OF LONG, n
+  IF confirmDiscard() = FALSE THEN RETURN
+  path := askFileEx('Create a new project', TRUE, outputDir(), '', '#?.mproj', '.mproj')
+  IF path = NIL THEN RETURN
+  IF okToOverwrite(path) = FALSE THEN RETURN
+
+  -> the first form lives next to the project file, named after it
+  n := StrLen(path)
+  formPath := String(n + 8)
+  StrCopy(formPath, path, n - 6)
+  StrAdd(formPath, '.mform', ALL)
+  IF okToOverwrite(formPath) = FALSE THEN RETURN
+  w := makeStarterForm('MainForm')
+  fh := Open(formPath, MODE_NEWFILE)
+  IF fh = NIL
+    status('Could not create the first form')
+    RETURN
+  ENDIF
+  writeForm(fh, w, 0)
+  Close(fh)
+
+  name := nameFromPath(path)
+  paths[0] := FilePart(formPath)
+  IF writeProjectFile(path, name, paths, 1) = FALSE
+    status('Could not create the project file')
+    RETURN
+  ENDIF
+  openProject(path)
+ENDPROC
+
 /*** compile and run ***/
 
 -> The directory part of the generated file's path ('' = current directory)
 PROC outputDir()
-  DEF p, n, s
-  p := PathPart(filename)
-  n := p - filename
-  IF filename[n] = "/" THEN n++
-  s := String(n + 2)
-  IF n > 0 THEN StrCopy(s, filename, n)
-ENDPROC s
+  IF projectPath THEN RETURN dirPart(projectPath)
+ENDPROC dirPart(filename)
 
 -> Makes dir the current directory; returns what leaveDir() needs
 PROC enterDir(dir)
@@ -735,35 +1020,6 @@ PROC leaveDir(lock, old)
   ENDIF
 ENDPROC
 
--> Skips the parameters of a console escape sequence; returns the new index
-PROC skipCsi(buf: PTR TO CHAR, len, i)
-  WHILE (i < len) AND ((buf[i] < 64) OR (buf[i] > 126)) DO i++
-  i++
-ENDPROC i
-
--> Compiler output without the escape sequences and control characters
-PROC cleanOutput(buf: PTR TO CHAR, len)
-  DEF out: PTR TO CHAR, i, o, ch
-  out := NewM(len + 1, MEMF_PUBLIC)
-  i := 0
-  o := 0
-  WHILE i < len
-    ch := buf[i]
-    IF ch = 27
-      i := skipCsi(buf, len, i + 2)
-    ELSEIF ch = $9B
-      i := skipCsi(buf, len, i + 1)
-    ELSEIF (ch >= 32) OR (ch = 10)
-      out[o] := ch
-      o++
-      i++
-    ELSE
-      i++
-    ENDIF
-  ENDWHILE
-  out[o] := 0
-ENDPROC out
-
 -> Compiles the generated file with ec. On errors, shows the output and puts
 -> the cursor on the offending line. Returns TRUE if it compiled.
 PROC compileCode()
@@ -779,9 +1035,9 @@ PROC compileCode()
   status('Compiling...')
   dir := outputDir()
   lock, old := enterDir(dir)
-  cmd := String(StrLen(form.name) + 64)
+  cmd := String(StrLen(programName()) + 64)
   StrCopy(cmd, 'ec ', ALL)
-  StrAdd(cmd, form.name, ALL)
+  StrAdd(cmd, programName(), ALL)
   StrAdd(cmd, ' IGNORECACHE > T:delphe-compile-out', ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
@@ -818,9 +1074,9 @@ PROC runCode()
   IF compileCode() = FALSE THEN RETURN
   dir := outputDir()
   lock, old := enterDir(dir)
-  cmd := String(StrLen(form.name) + 32)
+  cmd := String(StrLen(programName()) + 32)
   StrCopy(cmd, 'run >NIL: <NIL: ', ALL)
-  StrAdd(cmd, form.name, ALL)
+  StrAdd(cmd, programName(), ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
   status('Started')
@@ -1056,12 +1312,12 @@ ENDPROC
 
 /*** undo and redo ***/
 
--> Menu items 5 and 6 of each window's menus are Undo and Redo
+-> Menu items 7 and 8 of each window's menus are Undo and Redo
 PROC updateUndoMenu()
   DEF slot, undoItem, redoItem
-  FOR slot := 0 TO 3
-    undoItem := mItems[slot * MENUITEMS + 5]
-    redoItem := mItems[slot * MENUITEMS + 6]
+  FOR slot := 0 TO 4
+    undoItem := mItems[slot * MENUITEMS + 7]
+    redoItem := mItems[slot * MENUITEMS + 8]
     IF undoTop > 0
       set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
     ELSE
@@ -1114,6 +1370,7 @@ ENDPROC
 PROC restoreForm(f: PTR TO component, selIdx)
   DEF target: PTR TO component
   form := f
+  syncCurrent()
   selected := NIL
   selectedNode := NIL
   lastTitleEdited := NIL
@@ -1197,71 +1454,67 @@ ENDPROC
 
 /*** menus and toolbars ***/
 
--> The path of a toolbar image, wherever the program is run from
-PROC imagePath(name)
-  DEF prefixes: PTR TO LONG, i, s
-  prefixes := ['PROGDIR://Images/', 'PROGDIR:Images/', 'Images/', '/Images/']
-  FOR i := 0 TO 3
-    s := String(StrLen(prefixes[i]) + StrLen(name) + 2)
-    StrCopy(s, prefixes[i], ALL)
-    StrAdd(s, name, ALL)
-    IF canOpen(s) THEN RETURN s
-  ENDFOR
-ENDPROC s
-
 -> Every window gets its own copy of the menus, because an Amiga menu bar
 -> belongs to the active window. The items are remembered in mItems (12 per
 -> window) so hookMenus() can connect them once the application exists.
 PROC makeMenu(slot)
-  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, base
+  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, base
   strip := MenustripObject,
     MUIA_Family_Child, MenuObjectT('Project'),
       MUIA_Family_Child, m1 := MenuitemObject,
-        MUIA_Menuitem_Title, 'New...', MUIA_Menuitem_Shortcut, 'N', End,
+        MUIA_Menuitem_Title, 'New project...', End,
       MUIA_Family_Child, m2 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Open...', MUIA_Menuitem_Shortcut, 'O', End,
+        MUIA_Menuitem_Title, 'Open project...', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
       MUIA_Family_Child, m3 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+        MUIA_Menuitem_Title, 'New form...', MUIA_Menuitem_Shortcut, 'N', End,
       MUIA_Family_Child, m4 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Open form...', MUIA_Menuitem_Shortcut, 'O', End,
+      MUIA_Family_Child, m5 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+      MUIA_Family_Child, m6 := MenuitemObject,
         MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m5 := MenuitemObject,
+      MUIA_Family_Child, m7 := MenuitemObject,
         MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
     End,
     MUIA_Family_Child, MenuObjectT('Edit'),
-      MUIA_Family_Child, m6 := MenuitemObject,
+      MUIA_Family_Child, m8 := MenuitemObject,
         MUIA_Menuitem_Title, 'Undo', MUIA_Menuitem_Shortcut, 'Z', End,
-      MUIA_Family_Child, m7 := MenuitemObject,
+      MUIA_Family_Child, m9 := MenuitemObject,
         MUIA_Menuitem_Title, 'Redo', MUIA_Menuitem_Shortcut, 'Y', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m8 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
-      MUIA_Family_Child, m9 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
       MUIA_Family_Child, m10 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
+      MUIA_Family_Child, m11 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
+      MUIA_Family_Child, m12 := MenuitemObject,
         MUIA_Menuitem_Title, 'Move down', MUIA_Menuitem_Shortcut, 'J', End,
     End,
     MUIA_Family_Child, MenuObjectT('Build'),
-      MUIA_Family_Child, m11 := MenuitemObject,
+      MUIA_Family_Child, m13 := MenuitemObject,
         MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
       MUIA_Family_Child, MenuitemObject,
         MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m12 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
-      MUIA_Family_Child, m13 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
       MUIA_Family_Child, m14 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
+      MUIA_Family_Child, m15 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
+      MUIA_Family_Child, m16 := MenuitemObject,
         MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
     End,
     MUIA_Family_Child, MenuObjectT('Window'),
-      MUIA_Family_Child, m15 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
-      MUIA_Family_Child, m16 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
       MUIA_Family_Child, m17 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
+      MUIA_Family_Child, m18 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
+      MUIA_Family_Child, m19 := MenuitemObject,
         MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
+      MUIA_Family_Child, m20 := MenuitemObject,
+        MUIA_Menuitem_Title, 'Project', MUIA_Menuitem_Shortcut, '4', End,
     End,
   End
   IF strip = NIL THEN Raise('Failed to create the menus')
@@ -1283,15 +1536,19 @@ PROC makeMenu(slot)
   mItems[base + 14] := m15
   mItems[base + 15] := m16
   mItems[base + 16] := m17
+  mItems[base + 17] := m18
+  mItems[base + 18] := m19
+  mItems[base + 19] := m20
 ENDPROC strip
 
 
 PROC hookMenus(windows)
   DEF ids, slot, k
-  ids := [ID_NEW, ID_OPEN, ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
+  ids := [ID_NEWPROJ, ID_OPENPROJ, ID_NEW, ID_OPEN, ID_SAVE, ID_SAVEAS,
+          MUIV_Application_ReturnID_Quit,
           ID_UNDO, ID_REDO, ID_DELETE, ID_UP, ID_DOWN,
           ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
-          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE]
+          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_SHOWPROJ]
   FOR slot := 0 TO windows - 1
     FOR k := 0 TO MENUITEMS - 1
       hookMenu(mItems[slot * MENUITEMS + k], ListItem(ids, k))
@@ -1307,28 +1564,9 @@ ENDPROC
 
 /*** main ***/
 
-PROC main() HANDLE
-  DEF sigs = 0, id, running, i, ids
+/*** building the program ***/
 
-  app := NIL
-  previewWin := NIL
-  liveObj := NIL
-  liveStale := FALSE
-  dirty := FALSE
-  titleFlip := FALSE
-  numBuf := String(16)
-  titleBuf1 := String(400)
-  titleBuf2 := String(400)
-
-  filename := cleanArg()
-  IF StrLen(filename) = 0 THEN filename := defaultFormPath()
-
-  form := readForm(filename)
-  IF form = NIL THEN Raise('Could not read the form')
-
-  IF (muimasterbase := OpenLibrary(MUIMASTER_NAME, MUIMASTER_VMIN)) = NIL THEN
-    Raise('Failed to open muimaster.library')
-
+PROC makeTree()
   -> No construct/destruct hooks: the string hook would copy our component
   -> pointer as if it were a string. The component is stored as-is in tn_User.
   treeMcc := eMui_CreateCustomClass(NIL, MUIC_Listtree, NIL, 4, {treeDispatcher})
@@ -1337,12 +1575,13 @@ PROC main() HANDLE
   tree := NewObjectA(treeMcc.mcc_class, NIL,
     [MUIA_Frame, MUIV_Frame_InputList,
      MUIA_Listtree_EmptyNodes, MUI_TRUE,
+     MUIA_Listtree_DuplicateNodeName, MUI_TRUE,
      MUIA_Listtree_SortHook, MUIV_Listtree_SortHook_Tail,
      TAG_DONE, 0])
   IF tree = NIL THEN Raise('Could not create the tree')
+ENDPROC
 
-  inspTitles := ['Properties', 'Events', NIL]
-
+PROC makeEditors()
   slider := ScrollbarObject,
     MUIA_Group_Horiz, FALSE,
   End
@@ -1366,7 +1605,10 @@ PROC main() HANDLE
   End
   IF logEditor = NIL THEN Raise('Could not create the output pane')
   set(logEditor, MUIA_TextEditor_FixedFont, MUI_TRUE)
+ENDPROC
 
+-> The two toolbars: actions, and the component palette
+PROC makeToolbars()
   -> toolbar: the buttons are numbered in order, spaces included
   actionsDef := buildBank([
     Toolbar_HintButton(0, 'New form', NIL),
@@ -1407,7 +1649,9 @@ PROC main() HANDLE
     MUIA_ShortHelp, TRUE,
   End
   IF paletteBar = NIL THEN Raise('Could not create the component palette')
+ENDPROC
 
+PROC makeMainWindow()
   -> main window: menus, toolbar, component palette, status line
   win := WindowObject,
     MUIA_Window_Title, 'DelphE Designer',
@@ -1427,6 +1671,10 @@ PROC main() HANDLE
       Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
     End,
   End
+ENDPROC
+
+PROC makeInspectorWindow()
+  inspTitles := ['Properties', 'Events', NIL]
 
   -> Object Inspector: properties and events of the selected component
   winInsp := WindowObject,
@@ -1497,7 +1745,9 @@ PROC main() HANDLE
       End,
     End,
   End
+ENDPROC
 
+PROC makeFormWindow()
   -> Form window: the structure tree beside the live form
   winForm := WindowObject,
     MUIA_Window_Title, 'Form',
@@ -1527,7 +1777,38 @@ PROC main() HANDLE
       End,
     End,
   End
+ENDPROC
 
+PROC makeProjectWindow()
+  -> Project window: the forms of the project
+  lstForms := ListObject,
+    InputListFrame,
+  End
+  winProj := WindowObject,
+    MUIA_Window_Title, 'Project',
+    MUIA_Window_ID, "DPRJ",
+    MUIA_Window_Menustrip, makeMenu(4),
+    MUIA_Window_LeftEdge, 875,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
+    MUIA_Window_Width, 190,
+    MUIA_Window_Height, 280,
+    WindowContents, VGroup,
+      Child, ListviewObject,
+        MUIA_Listview_List, lstForms,
+      End,
+      Child, HGroup,
+        Child, btnFormNew := SimpleButton('New'),
+        Child, btnFormAdd := SimpleButton('Add...'),
+      End,
+      Child, HGroup,
+        Child, btnFormRemove := SimpleButton('Remove'),
+        Child, btnFormMain := SimpleButton('Make main'),
+      End,
+    End,
+  End
+ENDPROC
+
+PROC makeCodeWindow()
   -> Code window: the generated file, and the compiler output below it
   winCode := WindowObject,
     MUIA_Window_Title, 'Code',
@@ -1559,8 +1840,11 @@ PROC main() HANDLE
       End,
     End,
   End
+ENDPROC
 
-  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL)
+-> All the windows go into one application
+PROC makeApplication()
+  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL) OR (winProj = NIL)
     Raise('Failed to create the windows')
   ENDIF
 
@@ -1573,9 +1857,15 @@ PROC main() HANDLE
     SubWindow, winInsp,
     SubWindow, winForm,
     SubWindow, winCode,
+    SubWindow, winProj,
   End
 
   IF app = NIL THEN Raise('Failed to create Application.')
+ENDPROC
+
+-> Connects gadgets, menus and toolbar buttons to the main loop
+PROC connectEvents()
+  DEF i, ids
 
   -> closing the main window quits; the others just hide (Window menu)
   doMethodA(win, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
@@ -1586,6 +1876,18 @@ PROC main() HANDLE
     winForm, 3, MUIM_Set, MUIA_Window_Open, FALSE])
   doMethodA(winCode, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
     winCode, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+  doMethodA(winProj, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
+    winProj, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+  doMethodA(lstForms, [MUIM_Notify, MUIA_List_Active, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_FORMSEL])
+  doMethodA(btnFormNew, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_NEW])
+  doMethodA(btnFormAdd, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_OPEN])
+  doMethodA(btnFormRemove, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_REMOVEFORM])
+  doMethodA(btnFormMain, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_MAKEMAIN])
 
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
@@ -1634,7 +1936,7 @@ PROC main() HANDLE
   doMethodA(btnDown, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DOWN])
 
-  hookMenus(4)
+  hookMenus(5)
   updateUndoMenu()
 
   -> toolbar buttons are numbered in order, spaces included; 0 = a space
@@ -1645,10 +1947,14 @@ PROC main() HANDLE
   FOR i := 0 TO 10
     hookButton(paletteBar, i, ID_PALETTE + i)
   ENDFOR
+ENDPROC
 
+PROC openWindows()
   addTree(form, MUIV_Listtree_Insert_ListNode_Root)
   loadCode()
 
+  refreshProjectList()
+  set(winProj, MUIA_Window_Open, MUI_TRUE)
   set(winInsp, MUIA_Window_Open, MUI_TRUE)
   set(winForm, MUIA_Window_Open, MUI_TRUE)
   set(winCode, MUIA_Window_Open, MUI_TRUE)
@@ -1656,79 +1962,141 @@ PROC main() HANDLE
   showProps(NIL)
   refreshLive()
   updateTitle()
+ENDPROC
 
+-> Handles one return ID; returns FALSE when it is time to quit
+PROC handleId(id)
+  DEF running
+  running := TRUE
+  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 11))
+    doAdd(id - ID_PALETTE)
+  ELSE
+    SELECT id
+      CASE MUIV_Application_ReturnID_Quit
+        IF confirmDiscard() THEN running := FALSE
+      CASE ID_SELECT
+        onSelect()
+      CASE ID_NAME
+        commitEdits()
+      CASE ID_TITLE
+        onTitle()
+      CASE ID_HANDLER
+        commitHandler()
+      CASE ID_DEFHANDLER
+        onDefaultHandler()
+      CASE ID_PROPS
+        commitProps()
+      CASE ID_EDITHANDLER
+        doEditHandler()
+      CASE ID_SAVECODE
+        saveCode()
+        status('Code saved')
+      CASE ID_RELOADCODE
+        loadCode()
+        status('Code reloaded from disk')
+      CASE ID_NEW
+        doNew()
+      CASE ID_OPEN
+        doOpen()
+      CASE ID_SAVEAS
+        doSaveAs()
+      CASE ID_COMPILE
+        compileCode()
+      CASE ID_RUN
+        runCode()
+      CASE ID_SAVE
+        doSave()
+      CASE ID_PREVIEW
+        doPreview()
+      CASE ID_GENERATE
+        doGenerate()
+      CASE ID_TREEDROP
+        onTreeDrop()
+      CASE ID_UNDO
+        doUndo()
+      CASE ID_REDO
+        doRedo()
+      CASE ID_DELETE
+        doDelete()
+      CASE ID_UP
+        doMove(-1)
+      CASE ID_DOWN
+        doMove(1)
+      CASE ID_SHOWFORM
+        showWin(winForm)
+      CASE ID_SHOWINSP
+        showWin(winInsp)
+      CASE ID_SHOWCODE
+        showWin(winCode)
+      CASE ID_SHOWPROJ
+        showWin(winProj)
+      CASE ID_NEWPROJ
+        doNewProject()
+      CASE ID_OPENPROJ
+        doOpenProject()
+      CASE ID_FORMSEL
+        onFormSelect()
+      CASE ID_REMOVEFORM
+        doRemoveForm()
+      CASE ID_MAKEMAIN
+        doMakeMain()
+    ENDSELECT
+  ENDIF
+ENDPROC running
+
+PROC mainLoop()
+  DEF sigs = 0, id, running
   running := TRUE
   WHILE running
     id := doMethodA(app, [MUIM_Application_NewInput, {sigs}])
-
-    IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 11))
-      doAdd(id - ID_PALETTE)
-    ELSE
-      SELECT id
-        CASE MUIV_Application_ReturnID_Quit
-          IF confirmDiscard() THEN running := FALSE
-        CASE ID_SELECT
-          onSelect()
-        CASE ID_NAME
-          commitEdits()
-        CASE ID_TITLE
-          onTitle()
-        CASE ID_HANDLER
-          commitHandler()
-        CASE ID_DEFHANDLER
-          onDefaultHandler()
-        CASE ID_PROPS
-          commitProps()
-        CASE ID_EDITHANDLER
-          doEditHandler()
-        CASE ID_SAVECODE
-          saveCode()
-          status('Code saved')
-        CASE ID_RELOADCODE
-          loadCode()
-          status('Code reloaded from disk')
-        CASE ID_NEW
-          doNew()
-        CASE ID_OPEN
-          doOpen()
-        CASE ID_SAVEAS
-          doSaveAs()
-        CASE ID_COMPILE
-          compileCode()
-        CASE ID_RUN
-          runCode()
-        CASE ID_SAVE
-          doSave()
-        CASE ID_PREVIEW
-          doPreview()
-        CASE ID_GENERATE
-          doGenerate()
-        CASE ID_TREEDROP
-          onTreeDrop()
-        CASE ID_UNDO
-          doUndo()
-        CASE ID_REDO
-          doRedo()
-        CASE ID_DELETE
-          doDelete()
-        CASE ID_UP
-          doMove(-1)
-        CASE ID_DOWN
-          doMove(1)
-        CASE ID_SHOWFORM
-          showWin(winForm)
-        CASE ID_SHOWINSP
-          showWin(winInsp)
-        CASE ID_SHOWCODE
-          showWin(winCode)
-      ENDSELECT
-    ENDIF
+    running := handleId(id)
 
     -> typing in the title box does not rebuild on every key; Return, or any
     -> other action, brings the live form up to date
     IF running AND liveStale AND (id <> ID_TITLE) THEN refreshLive()
     IF running AND sigs THEN sigs := Wait(sigs)
   ENDWHILE
+ENDPROC
+
+PROC main() HANDLE
+  app := NIL
+  previewWin := NIL
+  liveObj := NIL
+  liveStale := FALSE
+  dirty := FALSE
+  titleFlip := FALSE
+  numBuf := String(16)
+  titleBuf1 := String(400)
+  titleBuf2 := String(400)
+
+  filename := cleanArg()
+  IF StrLen(filename) = 0 THEN filename := defaultFormPath()
+
+  IF isProjectFile(filename)
+    IF loadCandidate(filename) = FALSE THEN Raise('Could not read the project')
+    adoptCandidate(filename)
+    form := projForms[0]
+    filename := joinPath(dirPart(projectPath), projPaths[0])
+  ELSE
+    form := readForm(filename)
+    IF form = NIL THEN Raise('Could not read the form')
+  ENDIF
+
+  IF (muimasterbase := OpenLibrary(MUIMASTER_NAME, MUIMASTER_VMIN)) = NIL THEN
+    Raise('Failed to open muimaster.library')
+
+  makeTree()
+  makeEditors()
+  makeToolbars()
+  makeMainWindow()
+  makeInspectorWindow()
+  makeFormWindow()
+  makeProjectWindow()
+  makeCodeWindow()
+  makeApplication()
+  connectEvents()
+  openWindows()
+  mainLoop()
 
   saveCode()
   set(win, MUIA_Window_Open, FALSE)

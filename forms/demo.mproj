@@ -1,0 +1,5 @@
+Project "Demo"
+Form "kinds.mform"
+Form "demo_settings.mform"
+Form "demo_main.mform"
+Form "test.mform"

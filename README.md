@@ -28,6 +28,8 @@ source.
 - **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
   Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run),
   with unsaved-changes prompts.
+- **Projects:** a `.mproj` file lists several forms. Generate writes one program
+  holding every form, and a handler can open another form (`fmSettings.show()`).
 - **Undo and redo** for every change to the form (up to 40 steps).
 - **Drag and drop** in the Form window's tree to reorder components or move them
   into another group.
@@ -52,6 +54,7 @@ src/MForm.e         .mform reader and writer
 src/Builder.e       form model -> live MUI objects (used by preview and designer)
 src/Generator.e     form model -> E source file
 src/Util.e          command line, file requester and string helpers
+src/Project.e       .mproj reader and writer
 src/Preview.e       standalone live preview: Preview [file.mform]
 src/GenTest.e       smoke test for the reader, writer and generator (no MUI)
 src/designer/       the designer: Designer.e
@@ -114,6 +117,21 @@ the watcher.
    component with a handler and click **Edit** to jump to its procedure.
 5. **Compile** and **Run** (toolbar, Build menu or the Code window) build and
    start the program. Windows you have closed come back from the Window menu.
+
+### Projects
+
+A project is a program with more than one form. **Project > New project...**
+creates a `.mproj` file with a first form beside it; **Open project...** opens
+one (or start the designer with `src/designer/designer forms/demo.mproj`). The
+**Project window** lists the forms: click one to edit it, or use New, Add...,
+Remove and Make main. In a project, **New form** and **Open form** add to the
+project, and **Save** writes every form and the project file.
+
+Generate writes a single `<ProjectName>.e` with every form in it, and Compile and
+Run build that program. The first form is the main form and opens at start;
+closing it ends the program. Other forms open and close with `show()` and
+`hide()`, which every handler can call on the form's global variable, named
+`fm` plus the window name (`fmDemoSettings.show()`).
 
 Generated files contain `DELPHE BEGIN` and `DELPHE END` markers. Edit your code
 below the markers; the section between them is rewritten on every Generate.

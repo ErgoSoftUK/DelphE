@@ -14,12 +14,13 @@ MODULE 'muimaster', 'libraries/mui', 'utility/tagitem',
 
 OBJECT tMainForm
   handle
+  idBase
   lblName
   edtName
   btnOk
   lbl1
-  btn1
   lbl2
+  btn1
   btnCancel
   cyc1
   edt1
@@ -34,8 +35,8 @@ PROC create() OF tMainForm
   self.edtName := StringObject, StringFrame, MUIA_String_Contents, '', End
   self.btnOk := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Test1234', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_ShortHelp, 'Test', End
   self.lbl1 := TextObject, TextFrame, MUIA_Text_Contents, 'Label', End
-  self.btn1 := SimpleButton('Button')
   self.lbl2 := TextObject, TextFrame, MUIA_Text_Contents, 'Label', End
+  self.btn1 := SimpleButton('Button')
   self.btnCancel := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Weight, 0, MUIA_Disabled, MUI_TRUE, End
   self.cyc1 := CycleObject, MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, ['One', 'Two', 'Three', NIL], End
   self.edt1 := StringObject, StringFrame, MUIA_String_Contents, '', End
@@ -53,8 +54,8 @@ PROC create() OF tMainForm
         Child, HGroup,
           Child, self.btnOk,
           Child, self.lbl1,
-          Child, self.btn1,
           Child, self.lbl2,
+          Child, self.btn1,
           Child, self.btnCancel,
         End,
         Child, self.cyc1,
@@ -68,15 +69,26 @@ PROC create() OF tMainForm
 ENDPROC
 
 PROC connect(app) OF tMainForm
-  doMethodA(self.btnOk, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, 1])
+  doMethodA(self.btnOk, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, self.idBase + 1])
 ENDPROC
 
 PROC handleEvent(id) OF tMainForm
-  SELECT id
+  DEF ev
+  ev := id - self.idBase
+  SELECT ev
     CASE 1
       self.btnOkClick()
   ENDSELECT
 ENDPROC
+
+PROC show() OF tMainForm
+  set(self.handle, MUIA_Window_Open, MUI_TRUE)
+ENDPROC
+
+PROC hide() OF tMainForm
+  set(self.handle, MUIA_Window_Open, FALSE)
+ENDPROC
+
 ->>> DELPHE END
 
 /*** your code ***/

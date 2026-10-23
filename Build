@@ -9,6 +9,7 @@ ec GenTest >> /build.out
 GenTest > /gentest.out
 ec MainForm >> /build.out
 ec Util >> /build.out
+ec Project >> /build.out
 ec Builder >> /build.out
 ec Preview >> /build.out
 ec mcc/Listtree_mcc >> /build.out

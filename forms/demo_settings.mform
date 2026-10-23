@@ -1,0 +1,4 @@
+Window DemoSettings "Settings"
+  VGroup root
+    Check chkOn @OnChange=chkOnChange
+    Button btnClose "Close" @OnClick=btnCloseClick
