@@ -10,3 +10,6 @@ src/Preview
 src/designer/Designer
 src/Designer
 src/mcc/*.m
+*.bak
+src/MainForm
+src/mainform

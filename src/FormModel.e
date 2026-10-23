@@ -18,6 +18,7 @@ OBJECT component
   firstChild: PTR TO component
   lastChild:  PTR TO component
   next:       PTR TO component
+  handler                             -> name of the event handler procedure, or NIL
   uiNode                              -> designer's tree node for this component
 ENDOBJECT
 
@@ -105,3 +106,27 @@ PROC childCount() OF component
     c := c.next
   ENDWHILE
 ENDPROC n
+
+-> Each kind with an event has exactly one, named here (NIL = no events)
+PROC eventName(kind)
+  SELECT kind
+    CASE CK_BUTTON
+      RETURN 'OnClick'
+    CASE CK_STRING
+      RETURN 'OnEnter'
+    CASE CK_CHECK
+      RETURN 'OnChange'
+  ENDSELECT
+ENDPROC NIL
+
+-> Suffix for a default handler name: btnOk + Click = btnOkClick
+PROC eventSuffix(kind)
+  SELECT kind
+    CASE CK_BUTTON
+      RETURN 'Click'
+    CASE CK_STRING
+      RETURN 'Enter'
+    CASE CK_CHECK
+      RETURN 'Change'
+  ENDSELECT
+ENDPROC NIL

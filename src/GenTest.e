@@ -1,13 +1,13 @@
 /*
 ** Smoke test for the .mform reader/writer and the generator.
 ** Needs no MUI: reads forms/sample.mform, echoes it back through the writer,
-** prints the generated source and writes it to MainForm.e for FormHost.
+** then creates or updates MainForm.e (a complete program) with generateFile().
 */
 
-MODULE 'dos/dos', '*FormModel', '*MForm', '*Generator'
+MODULE '*FormModel', '*MForm', '*Generator'
 
 PROC main()
-  DEF win: PTR TO component, fh
+  DEF win: PTR TO component, res
 
   win := readForm('/forms/sample.mform')
   IF win = NIL
@@ -18,12 +18,6 @@ PROC main()
   WriteF('--- .mform round trip ---\n')
   writeForm(stdout, win, 0)
 
-  WriteF('\n--- generated source ---\n')
-  generateUnit(stdout, win)
-
-  fh := Open('MainForm.e', MODE_NEWFILE)
-  IF fh
-    generateUnit(fh, win)
-    Close(fh)
-  ENDIF
+  res := generateFile('MainForm.e', win)
+  WriteF('\n--- generateFile: \d (0 = ok) ---\n', res)
 ENDPROC

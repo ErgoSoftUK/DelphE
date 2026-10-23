@@ -30,6 +30,14 @@ PROC writeForm(fh, c: PTR TO component, depth)
     put(fh, c.title)
     put(fh, '\q')
   ENDIF
+  IF c.handler
+    IF eventName(c.kind)
+      put(fh, ' @')
+      put(fh, eventName(c.kind))
+      put(fh, '=')
+      put(fh, c.handler)
+    ENDIF
+  ENDIF
   put(fh, '\n')
   ch := c.firstChild
   WHILE ch
@@ -46,7 +54,7 @@ PROC nextToken(line, pos)
   DEF len, start, tok
   len := StrLen(line)
   WHILE (pos < len) AND (line[pos] = " ") DO pos++
-  IF pos >= len THEN RETURN NIL, pos
+  IF pos >= len THEN RETURN NIL, pos, FALSE
 
   IF line[pos] = 34
     pos++
@@ -56,18 +64,30 @@ PROC nextToken(line, pos)
     -> MidStr treats a length of 0 as "the rest of the string"
     IF pos > start THEN MidStr(tok, line, start, pos - start)
     IF pos < len THEN pos++
-    RETURN tok, pos
+    RETURN tok, pos, TRUE
   ENDIF
 
   start := pos
   WHILE (pos < len) AND (line[pos] <> " ") DO pos++
   tok := String(pos - start + 1)
   MidStr(tok, line, start, pos - start)
-ENDPROC tok, pos
+ENDPROC tok, pos, FALSE
+
+-> "@OnClick=handler" -> a copy of "handler", or NIL
+PROC eventHandler(tok)
+  DEF eq, n, h
+  eq := InStr(tok, '=')
+  IF eq < 0 THEN RETURN NIL
+  n := StrLen(tok) - eq - 1
+  IF n < 1 THEN RETURN NIL
+  h := String(n + 1)
+  MidStr(h, tok, eq + 1, n)
+ENDPROC h
 
 -> Reads a form; returns the window component, or NIL on error.
 PROC readForm(filename)
   DEF fh, line, lineNo, pos, level, kindTok, nameTok, titleTok, kind, i
+  DEF handlerTok, tok, quoted
   DEF c: PTR TO component, win: PTR TO component, parent: PTR TO component
   DEF stack[MAXDEPTH]: ARRAY OF LONG
 
@@ -93,7 +113,22 @@ PROC readForm(filename)
       level := Div(pos, 2)
       kindTok, pos := nextToken(line, pos)
       nameTok, pos := nextToken(line, pos)
-      titleTok, pos := nextToken(line, pos)
+
+      -> the rest: a quoted title and/or an unquoted @Event=handler
+      titleTok := NIL
+      handlerTok := NIL
+      REPEAT
+        tok, pos, quoted := nextToken(line, pos)
+        IF tok
+          IF quoted
+            titleTok := tok
+          ELSEIF tok[0] = "@"
+            handlerTok := eventHandler(tok)
+          ELSEIF titleTok = NIL
+            titleTok := tok
+          ENDIF
+        ENDIF
+      UNTIL tok = NIL
 
       kind := kindFromName(kindTok)
       IF kind = -1
@@ -119,6 +154,7 @@ PROC readForm(filename)
       ENDIF
 
       c := newComponent(kind, nameTok, titleTok)
+      c.handler := handlerTok
       IF level = 0
         IF kind <> CK_WINDOW
           WriteF('\s line \d: the first component must be a Window\n', filename, lineNo)
