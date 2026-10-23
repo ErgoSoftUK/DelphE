@@ -23,8 +23,8 @@ ENDOBJECT
 PROC create() OF tMainForm
   self.lblName := TextObject, TextFrame, MUIA_Text_Contents, 'Name:', End
   self.edtName := StringObject, StringFrame, MUIA_String_Contents, '', End
-  self.btnOk := SimpleButton('Test1234')
-  self.btnCancel := SimpleButton('Cancel')
+  self.btnOk := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Test1234', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_ShortHelp, 'Test', End
+  self.btnCancel := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Disabled, MUI_TRUE, End
   self.handle := WindowObject,
     MUIA_Window_Title, 'Hello DelphE',
     MUIA_Window_ID, "MAIN",
@@ -42,15 +42,12 @@ ENDPROC
 
 PROC connect(app) OF tMainForm
   doMethodA(self.btnOk, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, 1])
-  doMethodA(self.btnCancel, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, 2])
 ENDPROC
 
 PROC handleEvent(id) OF tMainForm
   SELECT id
     CASE 1
       self.btnOkClick()
-    CASE 2
-      self.btnCancelClick()
   ENDSELECT
 ENDPROC
 ->>> DELPHE END

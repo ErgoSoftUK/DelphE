@@ -11,7 +11,7 @@
 OPT PREPROCESS
 OPT LARGE
 
-MODULE 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
+MODULE 'libraries/gadtools', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
        '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc'
@@ -26,12 +26,19 @@ DEF app, win, tree, strName, strTitle, txtKind, txtStatus,
     pages, pageTitles, editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
     logEditor, logSlider, btnCompile, btnRun,
     strWeight, strFixW, strFixH, strHint, chkDisabled, chkFrame, numBuf,
-    btnNew, btnOpen, btnSaveAs, dirty, titleBuf1, titleBuf2, titleFlip,
+    menu, miNew, miOpen, miSave, miSaveAs, miQuit, miPreview, miGenerate, miCompile, miRun,
+    dirty, titleBuf1, titleBuf2, titleFlip,
     cycKind, btnAdd, btnDelete, btnUp, btnDown, btnGenerate, kindNames,
     form: PTR TO component, filename,
     selected: PTR TO component, selectedNode
 
 PROC status(msg) IS set(txtStatus, MUIA_Text_Contents, msg)
+
+-> a menu item sends the given return ID to the main loop when chosen
+PROC hookMenu(item, id)
+  doMethodA(item, [MUIM_Notify, MUIA_Menuitem_Trigger, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, id])
+ENDPROC
 
 /*** tree ***/
 
@@ -926,18 +933,44 @@ PROC main() HANDLE
   IF logEditor = NIL THEN Raise('Could not create the output pane')
   set(logEditor, MUIA_TextEditor_FixedFont, MUI_TRUE)
 
+  menu := MenustripObject,
+    MUIA_Family_Child, MenuObjectT('Project'),
+      MUIA_Family_Child, miNew := MenuitemObject,
+        MUIA_Menuitem_Title, 'New...', MUIA_Menuitem_Shortcut, 'N', End,
+      MUIA_Family_Child, miOpen := MenuitemObject,
+        MUIA_Menuitem_Title, 'Open...', MUIA_Menuitem_Shortcut, 'O', End,
+      MUIA_Family_Child, miSave := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
+      MUIA_Family_Child, miSaveAs := MenuitemObject,
+        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, miQuit := MenuitemObject,
+        MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
+    End,
+    MUIA_Family_Child, MenuObjectT('Build'),
+      MUIA_Family_Child, miPreview := MenuitemObject,
+        MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
+      MUIA_Family_Child, MenuitemObject,
+        MUIA_Menuitem_Title, NM_BARLABEL, End,
+      MUIA_Family_Child, miGenerate := MenuitemObject,
+        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
+      MUIA_Family_Child, miCompile := MenuitemObject,
+        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
+      MUIA_Family_Child, miRun := MenuitemObject,
+        MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
+    End,
+  End
+  IF menu = NIL THEN Raise('Failed to create the menus')
+
   win := WindowObject,
     MUIA_Window_Title, 'DelphE Designer',
     MUIA_Window_ID, "DSGN",
+    MUIA_Window_Menustrip, menu,
     WindowContents, VGroup,
-      Child, HGroup,
-        Child, btnNew := SimpleButton('New'),
-        Child, btnOpen := SimpleButton('Open'),
-        Child, btnSave := SimpleButton('Save'),
-        Child, btnSaveAs := SimpleButton('Save As'),
-        Child, btnPreview := SimpleButton('Preview'),
-        Child, btnGenerate := SimpleButton('Generate'),
-      End,
+      Child, pages := RegisterGroup(pageTitles),
+        MUIA_Register_Frame, MUI_TRUE,
+      Child, VGroup,
       Child, HGroup,
         Child, cycKind := Cycle(kindNames),
         Child, btnAdd := SimpleButton('Add'),
@@ -945,8 +978,6 @@ PROC main() HANDLE
         Child, btnUp := SimpleButton('Move Up'),
         Child, btnDown := SimpleButton('Move Down'),
       End,
-      Child, pages := RegisterGroup(pageTitles),
-        MUIA_Register_Frame, MUI_TRUE,
       Child, HGroup,
         Child, ListviewObject,
           MUIA_Weight, 40,
@@ -962,7 +993,14 @@ PROC main() HANDLE
             Child, strName := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Title:'),
             Child, strTitle := StringObject, StringFrame, MUIA_String_Contents, '', End,
-            Child, txtEvent := TextObject, TextFrame, MUIA_Text_Contents, '', End,
+            -> acts as a label: right-aligned, and no weight so it can't claim the width
+            -> that belongs to the gadget column
+            Child, txtEvent := TextObject,
+              MUIA_Text_PreParse, '\er',
+              MUIA_Text_Contents, '',
+              MUIA_FixWidthTxt, '(no events) ',
+              MUIA_Weight, 0,
+            End,
             Child, HGroup,
               Child, strHandler := StringObject, StringFrame, MUIA_String_Contents, '', End,
               Child, btnDefHandler := SimpleButton('New'),
@@ -983,6 +1021,7 @@ PROC main() HANDLE
           End,
           Child, VSpace(0),
         End,
+      End,
       End,
       Child, VGroup,
         Child, HGroup,
@@ -1052,22 +1091,19 @@ PROC main() HANDLE
     app, 2, MUIM_Application_ReturnID, ID_SAVECODE])
   doMethodA(btnReloadCode, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_RELOADCODE])
+  hookMenu(miNew, ID_NEW)
+  hookMenu(miOpen, ID_OPEN)
+  hookMenu(miSave, ID_SAVE)
+  hookMenu(miSaveAs, ID_SAVEAS)
+  hookMenu(miQuit, MUIV_Application_ReturnID_Quit)
+  hookMenu(miPreview, ID_PREVIEW)
+  hookMenu(miGenerate, ID_GENERATE)
+  hookMenu(miCompile, ID_COMPILE)
+  hookMenu(miRun, ID_RUN)
   doMethodA(btnCompile, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_COMPILE])
   doMethodA(btnRun, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_RUN])
-  doMethodA(btnNew, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_NEW])
-  doMethodA(btnOpen, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_OPEN])
-  doMethodA(btnSaveAs, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_SAVEAS])
-  doMethodA(btnSave, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_SAVE])
-  doMethodA(btnPreview, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_PREVIEW])
-  doMethodA(btnGenerate, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_GENERATE])
   doMethodA(btnAdd, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_ADD])
   doMethodA(btnDelete, [MUIM_Notify, MUIA_Pressed, FALSE,
