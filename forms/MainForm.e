@@ -15,11 +15,11 @@ MODULE 'muimaster', 'libraries/mui', 'utility/tagitem',
 /*** your code ***/
 
 PROC btnOkClick() OF tMainForm
-  WriteF('OK!')
+  WriteF('OK!\n')
 ENDPROC
 
 PROC btnCancelClick() OF tMainForm
-  WriteF('Cancel!')
+  WriteF('Cancel!\n')
 ENDPROC
 
 PROC main() HANDLE
@@ -66,7 +66,6 @@ EXCEPT DO
 ENDPROC
 
 PROC btn2Click() OF tMainForm
-  WriteF('Hello world!!')
-  WriteF('This is a test for syntax highlighting!!!;END JPEG Codec
-')
+  WriteF('Hello world!!\n')
+  WriteF('This is a test for syntax highlighting!!!\n')
 ENDPROC
