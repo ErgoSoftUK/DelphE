@@ -28,7 +28,7 @@ source.
 - **Code generation:** the form becomes `<Name>.gen.e`, which is rewritten every time,
   and a separate `<Name>.e` that is all yours: the generated code is inserted into it
   when you compile, so the editor never shows it. New handlers get a stub appended.
-- **Code editor** (TextEditor.mcc) with Compile and Run, compiler output, and
+- **Code editor** (TextEditor.mcc) with syntax colours, Compile and Run, compiler output, and
   jump to the line of a compile error.
 - **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
   Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run; Generate is menu-only),

@@ -13,7 +13,7 @@ OPT LARGE
 
 MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
-       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project',
+       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project', '*/Highlight',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
@@ -507,14 +507,21 @@ ENDPROC s
 
 -> Loads the generated file into the editor (or clears it if there is none)
 PROC loadCode()
-  DEF path, buf, len
+  DEF path, buf, len, styled
   path := outputPath()
   buf, len := readAll(path)
   IF buf = NIL
     set(editor, MUIA_TextEditor_Contents, '')
     set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Compile or Build > Generate code creates it')
   ELSE
-    set(editor, MUIA_TextEditor_Contents, buf)
+    -> the editor gets the source with syntax colours; saveCode takes them out again
+    styled := highlightText(buf, len)
+    IF styled
+      set(editor, MUIA_TextEditor_Contents, styled)
+      FreeVec(styled)
+    ELSE
+      set(editor, MUIA_TextEditor_Contents, buf)
+    ENDIF
     -> path is not freed: the text gadget may keep the pointer
     set(txtCodePath, MUIA_Text_Contents, path)
   ENDIF
@@ -531,6 +538,7 @@ PROC saveCode()
   IF canOpen(path) = FALSE THEN RETURN
   text := doMethodA(editor, [MUIM_TextEditor_ExportText])
   IF text = NIL THEN RETURN
+  stripStyles(text)
   fh := Open(path, MODE_NEWFILE)
   IF fh
     Write(fh, text, StrLen(text))

@@ -19,3 +19,4 @@ forms/demo
 *.gen.e
 src/MainFormBuilt
 src/MainFormBuilt.e
+src/PenTest

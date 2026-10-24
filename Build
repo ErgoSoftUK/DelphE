@@ -10,8 +10,10 @@ GenTest > /gentest.out
 ec MainFormBuilt >> /build.out
 ec Util >> /build.out
 ec Project >> /build.out
+ec Highlight >> /build.out
 ec Builder >> /build.out
 ec Preview >> /build.out
+ec PenTest >> /build.out
 ec mcc/Listtree_mcc >> /build.out
 ec mcc/TextEditor_MCC >> /build.out
 ec mcc/Toolbar_mcc >> /build.out
