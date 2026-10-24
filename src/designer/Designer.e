@@ -18,7 +18,7 @@ MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
-     ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
+     ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
      ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK
 
@@ -48,8 +48,8 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
-    editor, slider, txtCodePath, btnSaveCode, btnReloadCode,
-    logEditor, logSlider, btnCompile, btnRun,
+    editor, slider, txtCodePath,
+    logEditor, logSlider,
     strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
@@ -1137,12 +1137,12 @@ PROC runCode()
   IF compileCode() = FALSE THEN RETURN
   dir := outputDir()
   lock, old := enterDir(dir)
-  -> the program's output (WriteF) goes to its own console window, which stays
-  -> open after the program ends until it is closed
+  -> the program's output (WriteF) goes to its own console window, which closes
+  -> when the program ends
   cmd := String((StrLen(programName()) * 2) + 80)
   StrCopy(cmd, 'run >CON:20/40/500/200/', ALL)
   StrAdd(cmd, programName(), ALL)
-  StrAdd(cmd, '/CLOSE/WAIT <NIL: ', ALL)
+  StrAdd(cmd, '/CLOSE <NIL: ', ALL)
   StrAdd(cmd, programName(), ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
@@ -1987,13 +1987,7 @@ PROC makeEditorPanel()
       End,
     End,
     Child, VGroup,
-      Child, HGroup,
-        Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
-        Child, btnSaveCode := SimpleButton('Save Code'),
-        Child, btnReloadCode := SimpleButton('Reload'),
-        Child, btnCompile := SimpleButton('Compile'),
-        Child, btnRun := SimpleButton('Run'),
-      End,
+      Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
       Child, HGroup,
         MUIA_Weight, 80,
         MUIA_Group_Spacing, 0,
@@ -2188,14 +2182,6 @@ PROC connectEvents()
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(btnEditHandler, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_EDITHANDLER])
-  doMethodA(btnSaveCode, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_SAVECODE])
-  doMethodA(btnReloadCode, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_RELOADCODE])
-  doMethodA(btnCompile, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_COMPILE])
-  doMethodA(btnRun, [MUIM_Notify, MUIA_Pressed, FALSE,
-    app, 2, MUIM_Application_ReturnID, ID_RUN])
   doMethodA(btnDelete, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DELETE])
   doMethodA(btnUp, [MUIM_Notify, MUIA_Pressed, FALSE,
@@ -2252,12 +2238,6 @@ PROC handleId(id)
         commitProps()
       CASE ID_EDITHANDLER
         doEditHandler()
-      CASE ID_SAVECODE
-        saveCode()
-        status('Code saved')
-      CASE ID_RELOADCODE
-        loadCode()
-        status('Code reloaded from disk')
       CASE ID_NEW
         doNew()
       CASE ID_OPEN

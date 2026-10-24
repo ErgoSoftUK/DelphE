@@ -118,9 +118,9 @@ the watcher.
    Moves the form cannot hold (for example, a second group next to the window's
    one group) are refused and the tree snaps back.
 3. **Preview form** (Build menu) shows the form as it is right now.
-4. **Compile** and **Run** (toolbar, Build menu or the Code tab) first regenerate
+4. **Compile** and **Run** (toolbar or Build menu) first regenerate
    `<WindowName>.e` next to the `.mform` file, then build and start the program. What it prints (`WriteF`) appears in a
-   console window of its own, which stays open until you close it.
+   console window of its own, which closes when the program ends.
    Select a component with a handler and click **Edit** to jump to its procedure.
    Build > **Generate code** regenerates without compiling.
 

@@ -190,8 +190,9 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   object is made, so each slider move replaces the area and rebuilds the form in
   it. MUI has no free
   positioning to drag, so components are selected in the tree, not by clicking
-  them in the live form. **Code** is `TextEditor.mcc` showing the generated file, a
-  read-only pane for compiler output, and Save Code, Reload, Compile and Run. Edit,
+  them in the live form. **Code** is `TextEditor.mcc` showing your program file (the generated code is not in it), the
+  file name above it, and a read-only pane for compiler output. Save, Compile and
+  Run live in the toolbar and menus. Edit,
   a compile error and the View menu's Code tab item all switch to the Code tab.
 - A Balance bar sits between the inspector and the tabs, and the View menu can
   hide the inspector altogether. There is one window, so one menu bar and one
