@@ -1924,17 +1924,15 @@ PROC makeInspectorPanel()
         End,
       End,
       Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
-      -> the component palette: it adds to the selection in the tree just below
-      -> a stretchy space on each side keeps it centred and lets the inspector
-      -> be resized without the palette's width getting in the way
-      Child, HGroup,
-        Child, HSpace(0),
-        Child, palPages := RegisterGroup(['Layout', 'Input', 'Display', NIL]),
-          Child, HGroup, Child, HSpace(0), Child, layoutBar, Child, HSpace(0), End,
-          Child, HGroup, Child, HSpace(0), Child, inputBar, Child, HSpace(0), End,
-          Child, HGroup, Child, HSpace(0), Child, displayBar, Child, HSpace(0), End,
-        End,
-        Child, HSpace(0),
+      -> the component palette: it adds to the selection in the tree just below.
+      -> The tabs fill the width and take only the height they need; the buttons
+      -> sit at the left, and the spare space at their right keeps the inspector
+      -> resizable
+      Child, palPages := RegisterGroup(['Layout', 'Input', 'Display', NIL]),
+        MUIA_VertWeight, 0,
+        Child, HGroup, Child, layoutBar, Child, HSpace(0), End,
+        Child, HGroup, Child, inputBar, Child, HSpace(0), End,
+        Child, HGroup, Child, displayBar, Child, HSpace(0), End,
       End,
       -> the component tree, with what acts on the selected component
       Child, VGroup,
