@@ -7,7 +7,7 @@ ec MForm >> /build.out
 ec Generator >> /build.out
 ec GenTest >> /build.out
 GenTest > /gentest.out
-ec MainForm >> /build.out
+ec MainFormBuilt >> /build.out
 ec Util >> /build.out
 ec Project >> /build.out
 ec Builder >> /build.out

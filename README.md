@@ -25,8 +25,9 @@ source.
   and min/max/value for sliders and gauges.
 - **Events:** one per component kind (`OnClick`, `OnEnter`, `OnChange`,
   `OnDoubleClick`), bound to a handler procedure.
-- **Code generation:** one E file per form, containing a regenerated section and
-  your own code. Regenerating keeps your handlers and adds stubs for new ones.
+- **Code generation:** the form becomes `<Name>.gen.e`, which is rewritten every time,
+  and a separate `<Name>.e` that is all yours: the generated code is inserted into it
+  when you compile, so the editor never shows it. New handlers get a stub appended.
 - **Code editor** (TextEditor.mcc) with Compile and Run, compiler output, and
   jump to the line of a compile error.
 - **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
@@ -138,8 +139,10 @@ closing it ends the program. Other forms open and close with `show()` and
 `hide()`, which every handler can call on the form's global variable, named
 `fm` plus the window name (`fmDemoSettings.show()`).
 
-Generated files contain `DELPHE BEGIN` and `DELPHE END` markers. Edit your code
-below the markers; the section between them is rewritten on every generate (which Compile and Run do for you).
+Keep the `DELPHE GENERATED CODE` line in `<Name>.e`: the generated file is inserted there
+when you compile. Everything else in that file is yours and is never rewritten. Files
+from older versions (generated code inside them) are converted on first generate, with
+the old one kept as `.bak`.
 
 ## Credits
 

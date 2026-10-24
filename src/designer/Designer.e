@@ -557,7 +557,7 @@ PROC regenerate()
   IF res = GEN_WRITEFAIL
     status('Could not write the generated file')
   ELSEIF res = GEN_NOMARKERS
-    status('That file has no DELPHE BEGIN/END markers: move it aside first')
+    status('That file has no DELPHE GENERATED CODE line: move it aside first')
   ELSE
     loadCode()
   ENDIF
@@ -1054,14 +1054,30 @@ ENDPROC
 -> Compiles the generated file with ec. On errors, shows the output and puts
 -> the cursor on the offending line. Returns TRUE if it compiled.
 PROC compileCode()
-  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg
+  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl
 
   -> bring the generated file up to date first (this also saves the editor)
   IF regenerate() <> GEN_OK THEN RETURN FALSE
 
   status('Compiling...')
   dir := outputDir()
-  lock, old := enterDir(dir)
+
+  -> ec gets the user's file with the generated file inserted, in a work drawer
+  bdir := 'T:delphe-build'
+  bl := CreateDir(bdir)
+  IF bl THEN UnLock(bl)
+  bfile := String(StrLen(bdir) + StrLen(programName()) + 8)
+  StrCopy(bfile, bdir, ALL)
+  StrAdd(bfile, '/', ALL)
+  StrAdd(bfile, programName(), ALL)
+  StrAdd(bfile, '.e', ALL)
+  first, glines := buildSource(outputPath(), bfile)
+  IF first < 0
+    status('Could not put the program together: is the DELPHE GENERATED CODE line still there?')
+    RETURN FALSE
+  ENDIF
+
+  lock, old := enterDir(bdir)
   cmd := String(StrLen(programName()) + 64)
   StrCopy(cmd, 'ec ', ALL)
   StrAdd(cmd, programName(), ALL)
@@ -1079,6 +1095,16 @@ PROC compileCode()
 
   ok := (InStr(clean, 'ERROR:') = -1) AND (InStr(clean, 'no errors') <> -1)
   IF ok
+    -> the program goes next to the source, where Run starts it from
+    cmd := String(StrLen(bdir) + StrLen(programName()) + StrLen(dir) + 40)
+    StrCopy(cmd, 'copy \a', ALL)
+    StrAdd(cmd, bdir, ALL)
+    StrAdd(cmd, '/', ALL)
+    StrAdd(cmd, programName(), ALL)
+    StrAdd(cmd, '\a to \a', ALL)
+    StrAdd(cmd, dir, ALL)
+    StrAdd(cmd, '\a QUIET', ALL)
+    Execute(cmd, 0, 0)
     status('Compiled with no errors')
     RETURN TRUE
   ENDIF
@@ -1086,10 +1112,20 @@ PROC compileCode()
   p := InStr(clean, 'LINE ')
   IF p <> -1
     line := Val(clean + p + 5)
-    showCode()
-    set(editor, MUIA_TextEditor_CursorY, line - 1)
-    msg := String(40)
-    StringF(msg, 'Compile error at line \d', line)
+    msg := String(80)
+    IF line >= (first + glines)
+      -> the compiler saw the inserted generated code: take it out of the count
+      line := line - glines
+      showCode()
+      set(editor, MUIA_TextEditor_CursorY, line - 1)
+      StringF(msg, 'Compile error at line \d', line)
+    ELSEIF line >= first
+      StringF(msg, 'Compile error in the generated code (line \d of the .gen.e file)', line - first + 1)
+    ELSE
+      showCode()
+      set(editor, MUIA_TextEditor_CursorY, line - 1)
+      StringF(msg, 'Compile error at line \d', line)
+    ENDIF
     status(msg)
   ELSE
     status('Compile failed: see the output below the editor')

@@ -7,7 +7,7 @@
 MODULE '*FormModel', '*MForm', '*Generator'
 
 PROC main()
-  DEF win: PTR TO component, res
+  DEF win: PTR TO component, res, first, glines
 
   win := readForm('/forms/sample.mform')
   IF win = NIL
@@ -20,4 +20,8 @@ PROC main()
 
   res := generateFile('MainForm.e', win)
   WriteF('\n--- generateFile: \d (0 = ok) ---\n', res)
+
+  -> the program the compiler gets: MainForm.e with MainForm.gen.e put into it
+  first, glines := buildSource('MainForm.e', 'MainFormBuilt.e')
+  WriteF('--- buildSource: generated code at line \d, \d lines ---\n', first, glines)
 ENDPROC
