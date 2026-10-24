@@ -512,7 +512,7 @@ PROC loadCode()
   buf, len := readAll(path)
   IF buf = NIL
     set(editor, MUIA_TextEditor_Contents, '')
-    set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Compile or Build > Generate code creates it')
+    set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Build or Build > Generate code creates it')
   ELSE
     -> the editor gets the source with syntax colours; saveCode takes them out again
     styled := highlightText(buf, len)
@@ -1658,7 +1658,7 @@ PROC makeMenu(slot)
       MUIA_Family_Child, m16 := MenuitemObject,
         MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
       MUIA_Family_Child, m17 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Compile', MUIA_Menuitem_Shortcut, 'C', End,
+        MUIA_Menuitem_Title, 'Build', MUIA_Menuitem_Shortcut, 'B', End,
       MUIA_Family_Child, m18 := MenuitemObject,
         MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
     End,
@@ -1777,8 +1777,8 @@ PROC makeToolbars()
     Toolbar_Space,
     Toolbar_HintButton(0, 'Preview the form in its own window', NIL),
     Toolbar_Space,
-    Toolbar_HintButton(0, 'Compile', NIL),
-    Toolbar_HintButton(0, 'Compile and run', NIL),
+    Toolbar_HintButton(0, 'Build (compile)', NIL),
+    Toolbar_HintButton(0, 'Build and run', NIL),
     Toolbar_End])
   actionsBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,

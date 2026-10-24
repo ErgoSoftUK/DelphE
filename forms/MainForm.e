@@ -67,4 +67,6 @@ ENDPROC
 
 PROC btn2Click() OF tMainForm
   WriteF('Hello world!!')
+  WriteF('This is a test for syntax highlighting!!!;END JPEG Codec
+')
 ENDPROC

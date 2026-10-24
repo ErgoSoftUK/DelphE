@@ -28,10 +28,10 @@ source.
 - **Code generation:** the form becomes `<Name>.gen.e`, which is rewritten every time,
   and a separate `<Name>.e` that is all yours: the generated code is inserted into it
   when you compile, so the editor never shows it. New handlers get a stub appended.
-- **Code editor** (TextEditor.mcc) with syntax colours, Compile and Run, compiler output, and
+- **Code editor** (TextEditor.mcc) with syntax colours, Build and Run, compiler output, and
   jump to the line of a compile error.
 - **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
-  Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run; Generate is menu-only),
+  Delete, Move up/down) and **Build menu** (Preview, Generate, Build (Right-Amiga+B), Run; Generate is menu-only),
   with unsaved-changes prompts.
 - **Projects:** a `.mproj` file lists several forms. Generate writes one program
   holding every form, and a handler can open another form (`fmSettings.show()`).
@@ -118,7 +118,7 @@ the watcher.
    Moves the form cannot hold (for example, a second group next to the window's
    one group) are refused and the tree snaps back.
 3. **Preview form** (Build menu) shows the form as it is right now.
-4. **Compile** and **Run** (toolbar or Build menu) first regenerate
+4. **Build** (compile) and **Run** (toolbar or Build menu) first regenerate
    `<WindowName>.e` next to the `.mform` file, then build and start the program. What it prints (`WriteF`) appears in a
    console window of its own, which closes when the program ends.
    Select a component with a handler and click **Edit** to jump to its procedure.
@@ -134,7 +134,7 @@ to edit it. The toolbar has New project and Open project, and the Project menu
 has Remove form and Make main form. In a project, **New form** and **Open form**
 add to the project, and **Save** writes every form and the project file.
 
-Generating writes a single `<ProjectName>.e` with every form in it, and Compile and
+Generating writes a single `<ProjectName>.e` with every form in it, and Build and
 Run regenerate and build that program. The first form is the main form and opens at start;
 closing it ends the program. Other forms open and close with `show()` and
 `hide()`, which every handler can call on the form's global variable, named

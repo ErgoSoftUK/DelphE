@@ -191,7 +191,7 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   it. MUI has no free
   positioning to drag, so components are selected in the tree, not by clicking
   them in the live form. **Code** is `TextEditor.mcc` showing your program file (the generated code is not in it), the
-  file name above it, and a read-only pane for compiler output. Save, Compile and
+  file name above it, and a read-only pane for compiler output. Save, Build and
   Run live in the toolbar and menus. Edit,
   a compile error and the View menu's Code tab item all switch to the Code tab.
 - A Balance bar sits between the inspector and the tabs, and the View menu can
@@ -200,10 +200,10 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   only follow the active window.
 - **Menus:** Project (New project, Open project, New form, Open form, Remove
   form, Make main form, Save, Save As, Quit), Edit (Undo, Redo, Delete,
-  Move up, Move down), Build (Preview, Generate, Compile, Run) and View (Form tab,
+  Move up, Move down), Build (Preview, Generate, Build, Run) and View (Form tab,
   Code tab, Show/hide object inspector).
 - Edits commit when you press Return, change the selection, or Save, Preview,
-  Generate, Compile or Run. Compile and Run regenerate first; Generate has no
+  Generate, Build or Run. Build and Run regenerate first; Generate has no
   toolbar button. Checkmarks and titles apply immediately.
 - A `*` in the window title marks unsaved changes; New, Open and Quit ask first.
 - **Undo / redo** keeps whole-form snapshots: just before each change the
@@ -213,8 +213,10 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   new change clears redo. A run of edits to the same title is one step.
   Strings are shared between copies, which is safe because they are replaced,
   never edited in place. Opening a form clears both stacks.
-- Compile runs `ec <form> IGNORECACHE` in the form's folder, reads the output,
-  and jumps to the line of the first error.
+- Build runs `ec <program> IGNORECACHE` on the combined source in `RAM:delphe-build`, reads
+  the output, copies the program next to the source and, on an error, jumps to its line.
+- Menu shortcuts take precedence over the code editor's own keys: Build is Right-Amiga+B
+  so that C (copy) stays with the editor.
 
 ### How Designer.e is organised
 
