@@ -125,7 +125,7 @@ PROC handleEvent(id) OF tMainForm   -> SELECT id, call the handler methods
   and generated code that calls the user's handlers cannot be a module. So
   `buildSource` writes the program that `ec` compiles: the user's file with the
   `.gen.e` text inserted after the marker line. That file goes to
-  `T:delphe-build/`, and the executable is copied next to the source after a
+  `RAM:delphe-build/`, and the executable is copied next to the source after a
   successful compile.
 - Compiler errors are traced back: `buildSource` returns the first inserted line
   and the number of inserted lines, so a line after the insertion is shown

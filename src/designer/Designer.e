@@ -1063,7 +1063,7 @@ PROC compileCode()
   dir := outputDir()
 
   -> ec gets the user's file with the generated file inserted, in a work drawer
-  bdir := 'T:delphe-build'
+  bdir := 'RAM:delphe-build'
   bl := CreateDir(bdir)
   IF bl THEN UnLock(bl)
   bfile := String(StrLen(bdir) + StrLen(programName()) + 8)
@@ -1081,11 +1081,11 @@ PROC compileCode()
   cmd := String(StrLen(programName()) + 64)
   StrCopy(cmd, 'ec ', ALL)
   StrAdd(cmd, programName(), ALL)
-  StrAdd(cmd, ' IGNORECACHE > T:delphe-compile-out', ALL)
+  StrAdd(cmd, ' IGNORECACHE > RAM:delphe-compile-out', ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
 
-  buf, len := readAll('T:delphe-compile-out')
+  buf, len := readAll('RAM:delphe-compile-out')
   IF buf = NIL
     status('Could not run ec (is it in your path?)')
     RETURN FALSE
