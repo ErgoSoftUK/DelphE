@@ -65,8 +65,29 @@ PROC addExtras(tags, c: PTR TO component)
   ENDIF
 ENDPROC tags
 
+-> Exactly one tab title per page: the entries of the Pages component's title, then
+-> "Page 3" and so on for the pages that have none
+PROC pageTitleList(c: PTR TO component, n)
+  DEF l, k, count, item
+  count := n
+  IF count < 1 THEN count := 1
+  l := List(count + 1)
+  FOR k := 0 TO count - 1
+    item := nthItem(titleOf(c), k)
+    IF item
+      IF StrLen(item) = 0 THEN item := NIL
+    ENDIF
+    IF item = NIL
+      item := String(16)
+      IF n = 0 THEN StrCopy(item, '(empty)', ALL) ELSE StringF(item, 'Page \d', k + 1)
+    ENDIF
+    ListAdd(l, [item], 1)
+  ENDFOR
+  ListAdd(l, [NIL], 1)
+ENDPROC l
+
 PROC buildGroup(c: PTR TO component)
-  DEF tags, n, ch: PTR TO component, child, obj
+  DEF tags, n, ch: PTR TO component, child, obj, class
 
   n := 0
   ch := c.firstChild
@@ -77,7 +98,12 @@ PROC buildGroup(c: PTR TO component)
 
   tags := List((n * 2) + TAGROOM)
   tags := ListCopy(tags, [TAG_IGNORE, 0])
+  class := MUIC_Group
   IF c.kind = CK_HGROUP THEN tags := ListAdd(tags, [MUIA_Group_Horiz, MUI_TRUE])
+  IF c.kind = CK_PAGES
+    class := MUIC_Register
+    tags := ListAdd(tags, [MUIA_Register_Titles, pageTitleList(c, n), MUIA_Register_Frame, MUI_TRUE])
+  ENDIF
   tags := addExtras(tags, c)
 
   ch := c.firstChild
@@ -91,8 +117,14 @@ PROC buildGroup(c: PTR TO component)
     ch := ch.next
   ENDWHILE
 
+  -> a Register needs at least one page
+  IF (c.kind = CK_PAGES) AND (n = 0)
+    child := Mui_NewObjectA(MUIC_Rectangle, [TAG_DONE, 0])
+    IF child THEN tags := ListAdd(tags, [MUIA_Group_Child, child])
+  ENDIF
+
   tags := ListAdd(tags, [TAG_DONE, 0])
-  obj := Mui_NewObjectA(MUIC_Group, tags)
+  obj := Mui_NewObjectA(class, tags)
   DisposeLink(tags)
 ENDPROC obj
 
@@ -101,7 +133,7 @@ PROC buildObject(c: PTR TO component)
   kind := c.kind
   t := titleOf(c)
 
-  IF (kind = CK_VGROUP) OR (kind = CK_HGROUP) THEN RETURN buildGroup(c)
+  IF (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) THEN RETURN buildGroup(c)
 
   tags := List(TAGROOM)
   tags := ListCopy(tags, [TAG_IGNORE, 0])

@@ -9,7 +9,7 @@ OPT MODULE
 OPT EXPORT
 
 ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
-     CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST
+     CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
@@ -49,15 +49,15 @@ PROC addChild(child: PTR TO component) OF component
   self.lastChild := child
 ENDPROC
 
-PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP)
+PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES)
 
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
-                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List'], kind)
+                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_LIST
+  FOR k := CK_WINDOW TO CK_PAGES
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -242,3 +242,23 @@ PROC nameTaken(c: PTR TO component, name, except: PTR TO component)
     ch := ch.next
   ENDWHILE
 ENDPROC FALSE
+
+-> The k-th entry (counting from 0) of "One|Two|Three" as a new E-string, or NIL if
+-> there are fewer
+PROC nthItem(s, k)
+  DEF i, start, len, n, item
+  len := StrLen(s)
+  start := 0
+  n := 0
+  FOR i := 0 TO len
+    IF (i = len) OR (s[i] = "|")
+      IF n = k
+        item := String(i - start + 1)
+        IF i > start THEN MidStr(item, s, start, i - start)
+        RETURN item
+      ENDIF
+      n++
+      start := i + 1
+    ENDIF
+  ENDFOR
+ENDPROC NIL

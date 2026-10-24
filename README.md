@@ -18,7 +18,7 @@ source.
 - **Form designer:** component tree, property inspector, add / delete / move
   components, live preview of the form as real MUI objects.
 - **Components:** groups (vertical, horizontal), Button, Text, String, Check,
-  Cycle, Radio, Slider, Gauge and List.
+  Cycle, Radio, Slider, Gauge, List and Pages (tabs).
 - **Entries dialog:** a `...` button beside Title/items opens a small editor with
   one entry per line, for Cycle, Radio and List components.
 - **Properties:** weight, fixed width/height, hint, disabled, group frame, and

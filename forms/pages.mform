@@ -1,0 +1,11 @@
+Window PagesDemo "Pages demo"
+  VGroup root
+    Pages tabs "General|Options|Don't know"
+      VGroup page1
+        Text lblA "First page"
+        Button btnA "A" @OnClick=btnAClick
+      VGroup page2
+        Check chkB
+      VGroup page3
+        String edtC ""
+    Pages emptyTabs "Only"

@@ -57,6 +57,7 @@ source keeps the compiled program independent of the IDE.
 | Slider  | (none)                      | `OnChange`      | min / max / value              |
 | Gauge   | (none)                      |                 | max / value                    |
 | List    | entries, separated by `\|`  | `OnDoubleClick` | static entries                 |
+| Pages   | tab titles, separated by `\|` |               | container: each child is a page |
 
 Optional properties (any component except the window): weight, fixed width,
 fixed height, hint (bubble help) and disabled; groups also have a frame.

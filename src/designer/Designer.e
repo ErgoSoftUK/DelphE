@@ -185,7 +185,7 @@ PROC showProps(c: PTR TO component)
     IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
-    IF (c.kind = CK_CYCLE) OR (c.kind = CK_RADIO) OR (c.kind = CK_LIST) THEN isItems := TRUE
+    IF (c.kind = CK_CYCLE) OR (c.kind = CK_RADIO) OR (c.kind = CK_LIST) OR (c.kind = CK_PAGES) THEN isItems := TRUE
   ENDIF
 
   showNumber(strWeight, flags, PF_WEIGHT, w)
@@ -1193,11 +1193,17 @@ PROC doAdd(idx)
 
   c := newComponent(kind,
          uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
-                              'cyc', 'rad', 'sld', 'gau', 'lst'], idx)),
+                              'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs'], idx)),
          ListItem([NIL, NIL, 'Button', 'Label', '', '',
-                   'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three'], idx))
+                   'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
+                   'Page 1|Page 2'], idx))
   pushUndo()
   target.addChild(c)
+  -> each child of a Pages component is a page: start with two
+  IF kind = CK_PAGES
+    c.addChild(newComponent(CK_VGROUP, uniqueName('page'), NIL))
+    c.addChild(newComponent(CK_VGROUP, uniqueName('page'), NIL))
+  ENDIF
   rebuildTree(c)
   markDirty()
   status('Added')
@@ -1755,6 +1761,7 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Add a slider', NIL),
     Toolbar_HintButton(0, 'Add a gauge', NIL),
     Toolbar_HintButton(0, 'Add a list', NIL),
+    Toolbar_HintButton(0, 'Add pages (tabs)', NIL),
     Toolbar_End])
   paletteBar2 := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
@@ -2045,7 +2052,7 @@ PROC openEntries()
   DEF c: PTR TO component
   c := selected
   IF c = NIL THEN RETURN
-  IF (c.kind <> CK_CYCLE) AND (c.kind <> CK_RADIO) AND (c.kind <> CK_LIST) THEN RETURN
+  IF (c.kind <> CK_CYCLE) AND (c.kind <> CK_RADIO) AND (c.kind <> CK_LIST) AND (c.kind <> CK_PAGES) THEN RETURN
   set(entriesEditor, MUIA_TextEditor_Contents, itemsToLines(titleOf(c)))
   set(winEntries, MUIA_Window_Open, MUI_TRUE)
   set(winEntries, MUIA_Window_Activate, MUI_TRUE)
@@ -2154,7 +2161,7 @@ PROC connectEvents()
   FOR i := 0 TO 13
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
-  FOR i := 0 TO 10
+  FOR i := 0 TO 11
     IF i < 6 THEN hookButton(paletteBar, i, ID_PALETTE + i) ELSE hookButton(paletteBar2, i - 6, ID_PALETTE + i)
   ENDFOR
 ENDPROC
@@ -2174,7 +2181,7 @@ ENDPROC
 PROC handleId(id)
   DEF running
   running := TRUE
-  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 11))
+  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 12))
     doAdd(id - ID_PALETTE)
   ELSE
     SELECT id

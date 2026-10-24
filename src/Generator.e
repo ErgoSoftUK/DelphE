@@ -312,10 +312,55 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       put(fh, 'HGroup,\n')
       emitGroupExtras(fh, c, depth)
       emitChildren(fh, c, depth)
+    CASE CK_PAGES
+      put(fh, 'RegisterGroup(')
+      putPageTitles(fh, c)
+      put(fh, '),\n')
+      indent(fh, depth + 1)
+      put(fh, 'MUIA_Register_Frame, MUI_TRUE,\n')
+      emitGroupExtras(fh, c, depth)
+      emitChildren(fh, c, depth)
+      -> a Register needs at least one page
+      IF c.firstChild = NIL
+        indent(fh, depth + 1)
+        put(fh, 'Child, RectangleObject, End,\n')
+      ENDIF
   ENDSELECT
 
   indent(fh, depth)
   put(fh, 'End')
+ENDPROC
+
+-> The tab titles of a Pages component as an E list: exactly one per page, as in
+-> the live form
+PROC putPageTitles(fh, c: PTR TO component)
+  DEF n, k, count, item, ch: PTR TO component
+  n := 0
+  ch := c.firstChild
+  WHILE ch
+    n++
+    ch := ch.next
+  ENDWHILE
+  count := n
+  IF count < 1 THEN count := 1
+  put(fh, '[')
+  FOR k := 0 TO count - 1
+    item := nthItem(c.title, k)
+    IF item
+      IF StrLen(item) = 0 THEN item := NIL
+    ENDIF
+    IF item
+      quoted(fh, item)
+    ELSEIF n = 0
+      put(fh, '\a(empty)\a')
+    ELSE
+      put(fh, '\aPage ')
+      putNum(fh, k + 1)
+      put(fh, '\a')
+    ENDIF
+    put(fh, ', ')
+  ENDFOR
+  put(fh, 'NIL]')
 ENDPROC
 
 PROC emitChildren(fh, c: PTR TO component, depth)
