@@ -216,7 +216,10 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
 - Build runs `ec <program> IGNORECACHE` on the combined source in `RAM:delphe-build`, reads
   the output, copies the program next to the source and, on an error, jumps to its line.
 - Menu shortcuts take precedence over the code editor's own keys: Build is Right-Amiga+B
-  so that C (copy) stays with the editor.
+  so that C (copy) stays with the editor. Undo and Redo
+  are context-sensitive: on the Code tab they send UNDO and REDO to the editor
+  (`MUIM_TextEditor_ARexxCmd`), elsewhere they act on the form; the menu items
+  are always enabled.
 
 ### How Designer.e is organised
 

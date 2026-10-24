@@ -1399,16 +1399,9 @@ PROC updateUndoMenu()
   FOR slot := 0 TO 0
     undoItem := mItems[slot * MENUITEMS + 9]
     redoItem := mItems[slot * MENUITEMS + 10]
-    IF undoTop > 0
-      set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
-    ELSE
-      set(undoItem, MUIA_Menuitem_Enabled, FALSE)
-    ENDIF
-    IF redoTop > 0
-      set(redoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
-    ELSE
-      set(redoItem, MUIA_Menuitem_Enabled, FALSE)
-    ENDIF
+    -> always enabled: on the Code tab they belong to the editor, whose history we cannot see
+    set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
+    set(redoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
   ENDFOR
 ENDPROC
 
@@ -1463,8 +1456,18 @@ PROC restoreForm(f: PTR TO component, selIdx)
   updateUndoMenu()
 ENDPROC
 
+-> True if the Code tab is showing: Undo and Redo then act on the editor's own history
+PROC codeTabActive()
+  DEF page
+  get(pages, MUIA_Group_ActivePage, {page})
+ENDPROC page = 1
+
 PROC doUndo()
   DEF i
+  IF codeTabActive()
+    doMethodA(editor, [MUIM_TextEditor_ARexxCmd, 'UNDO'])
+    RETURN
+  ENDIF
   commitEdits()
   IF undoTop = 0
     status('Nothing to undo')
@@ -1487,6 +1490,10 @@ PROC doUndo()
 ENDPROC
 
 PROC doRedo()
+  IF codeTabActive()
+    doMethodA(editor, [MUIM_TextEditor_ARexxCmd, 'REDO'])
+    RETURN
+  ENDIF
   commitEdits()
   IF redoTop = 0
     status('Nothing to redo')
