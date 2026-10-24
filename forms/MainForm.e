@@ -66,5 +66,5 @@ EXCEPT DO
 ENDPROC
 
 PROC btn2Click() OF tMainForm
-  -> TODO: handle OnClick of btn2
+  WriteF('Hello world!!')
 ENDPROC

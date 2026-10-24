@@ -1137,8 +1137,12 @@ PROC runCode()
   IF compileCode() = FALSE THEN RETURN
   dir := outputDir()
   lock, old := enterDir(dir)
-  cmd := String(StrLen(programName()) + 32)
-  StrCopy(cmd, 'run >NIL: <NIL: ', ALL)
+  -> the program's output (WriteF) goes to its own console window, which stays
+  -> open after the program ends until it is closed
+  cmd := String((StrLen(programName()) * 2) + 80)
+  StrCopy(cmd, 'run >CON:20/40/500/200/', ALL)
+  StrAdd(cmd, programName(), ALL)
+  StrAdd(cmd, '/CLOSE/WAIT <NIL: ', ALL)
   StrAdd(cmd, programName(), ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
