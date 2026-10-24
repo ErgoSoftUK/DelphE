@@ -12,4 +12,8 @@ Window MainForm "Hello DelphE"
       VGroup page1
         List lst1 "One|Two|Three|Four|Five|Six"
       VGroup page2
-        Gauge gau1 ""
+        ColGroup col1 :value=2
+          Scroll scr1
+            Memo mem1 ""
+            Spacer spc1
+          Gauge gau1 ""
