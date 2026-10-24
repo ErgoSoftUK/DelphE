@@ -43,8 +43,8 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
 DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
-    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2, paletteBar3,
-    inspPages, inspTitles, actionsDef, paletteDef, paletteDef2, paletteDef3,
+    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, layoutBar, inputBar, displayBar, palPages, palKinds1, palKinds2, palKinds3,
+    inspPages, inspTitles, actionsDef, layoutDef, inputDef, displayDef,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
@@ -1739,6 +1739,21 @@ PROC hookButton(bar, idx, id)
     app, 2, MUIM_Application_ReturnID, id])
 ENDPROC
 
+-> Hooks a palette tab: button i adds the i-th kind of the list. A component whose
+-> MUI class is not installed cannot be added, so its button is greyed out.
+PROC hookPalette(bar, kinds: PTR TO LONG)
+  DEF i, kind
+  FOR i := 0 TO ListLen(kinds) - 1
+    kind := kinds[i]
+    hookButton(bar, i, ID_PALETTE + kind - 1)
+    IF kindClass(kind)
+      IF classInstalled(kindClass(kind)) = FALSE
+        doMethodA(bar, [MUIM_Toolbar_Set, i, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
+      ENDIF
+    ENDIF
+  ENDFOR
+ENDPROC
+
 /*** main ***/
 
 /*** building the program ***/
@@ -1810,53 +1825,60 @@ PROC makeToolbars()
   End
   IF actionsBar = NIL THEN Raise('Could not create the toolbar (is Toolbar.mcc installed?)')
 
-  -> the palette is two short rows rather than one long one: a Toolbar never
-  -> wraps, so a single row would fix the inspector's width
-  paletteDef := buildBank([
+  -> the palette is split into tabs by what a component is for, so that no
+  -> toolbar is wide: a Toolbar never wraps, and a long row would fix the
+  -> inspector's width. The kinds of each tab, in button order (a button's ID is
+  -> ID_PALETTE + its kind - 1):
+  palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER]
+  palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
+  palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
+
+  layoutDef := buildBank([
     Toolbar_HintButton(0, 'Add a vertical group', NIL),
     Toolbar_HintButton(0, 'Add a horizontal group', NIL),
-    Toolbar_HintButton(0, 'Add a button', NIL),
-    Toolbar_HintButton(0, 'Add a text label', NIL),
-    Toolbar_HintButton(0, 'Add a string gadget', NIL),
-    Toolbar_HintButton(0, 'Add a checkmark', NIL),
+    Toolbar_HintButton(0, 'Add a column group (children laid out in columns)', NIL),
+    Toolbar_HintButton(0, 'Add a scrolling group', NIL),
+    Toolbar_HintButton(0, 'Add pages (tabs)', NIL),
+    Toolbar_HintButton(0, 'Add a spacer (empty space that stretches)', NIL),
     Toolbar_End])
-  paletteBar := ToolbarObject,
+  layoutBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
-    MUIA_Toolbar_ImageNormal, imagePath('palette1.iff'),
-    MUIA_Toolbar_Description, paletteDef,
+    MUIA_Toolbar_ImageNormal, imagePath('layout.iff'),
+    MUIA_Toolbar_Description, layoutDef,
     MUIA_ShortHelp, TRUE,
   End
-  IF paletteBar = NIL THEN Raise('Could not create the component palette')
+  IF layoutBar = NIL THEN Raise('Could not create the component palette')
 
-  paletteDef2 := buildBank([
+  inputDef := buildBank([
+    Toolbar_HintButton(0, 'Add a button', NIL),
+    Toolbar_HintButton(0, 'Add a string gadget', NIL),
+    Toolbar_HintButton(0, 'Add a checkmark', NIL),
     Toolbar_HintButton(0, 'Add a cycle gadget', NIL),
     Toolbar_HintButton(0, 'Add radio buttons', NIL),
     Toolbar_HintButton(0, 'Add a slider', NIL),
-    Toolbar_HintButton(0, 'Add a gauge', NIL),
-    Toolbar_HintButton(0, 'Add a list', NIL),
-    Toolbar_HintButton(0, 'Add pages (tabs)', NIL),
-    Toolbar_End])
-  paletteBar2 := ToolbarObject,
-    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
-    MUIA_Toolbar_ImageNormal, imagePath('palette2.iff'),
-    MUIA_Toolbar_Description, paletteDef2,
-    MUIA_ShortHelp, TRUE,
-  End
-  IF paletteBar2 = NIL THEN Raise('Could not create the component palette')
-
-  paletteDef3 := buildBank([
-    Toolbar_HintButton(0, 'Add a spacer (empty space that stretches)', NIL),
-    Toolbar_HintButton(0, 'Add a column group (children laid out in columns)', NIL),
-    Toolbar_HintButton(0, 'Add a scrolling group', NIL),
     Toolbar_HintButton(0, 'Add a text editor (needs TextEditor.mcc)', NIL),
     Toolbar_End])
-  paletteBar3 := ToolbarObject,
+  inputBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
-    MUIA_Toolbar_ImageNormal, imagePath('palette3.iff'),
-    MUIA_Toolbar_Description, paletteDef3,
+    MUIA_Toolbar_ImageNormal, imagePath('input.iff'),
+    MUIA_Toolbar_Description, inputDef,
     MUIA_ShortHelp, TRUE,
   End
-  IF paletteBar3 = NIL THEN Raise('Could not create the component palette')
+  IF inputBar = NIL THEN Raise('Could not create the component palette')
+
+  displayDef := buildBank([
+    Toolbar_HintButton(0, 'Add a text label', NIL),
+    Toolbar_HintButton(0, 'Add a gauge', NIL),
+    Toolbar_HintButton(0, 'Add a list', NIL),
+    Toolbar_End])
+  displayBar := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('display.iff'),
+    MUIA_Toolbar_Description, displayDef,
+    MUIA_ShortHelp, TRUE,
+  End
+  IF displayBar = NIL THEN Raise('Could not create the component palette')
+ 
 ENDPROC
 
 PROC makeMainWindow()
@@ -1907,10 +1929,10 @@ PROC makeInspectorPanel()
       -> be resized without the palette's width getting in the way
       Child, HGroup,
         Child, HSpace(0),
-        Child, VGroup, GroupFrameT('Add component'),
-          Child, paletteBar,
-          Child, paletteBar2,
-          Child, paletteBar3,
+        Child, palPages := RegisterGroup(['Layout', 'Input', 'Display', NIL]),
+          Child, HGroup, Child, HSpace(0), Child, layoutBar, Child, HSpace(0), End,
+          Child, HGroup, Child, HSpace(0), Child, inputBar, Child, HSpace(0), End,
+          Child, HGroup, Child, HSpace(0), Child, displayBar, Child, HSpace(0), End,
         End,
         Child, HSpace(0),
       End,
@@ -2243,27 +2265,9 @@ PROC connectEvents()
   FOR i := 0 TO 12
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
-  FOR i := 0 TO 15
-    IF i < 6
-      hookButton(paletteBar, i, ID_PALETTE + i)
-    ELSEIF i < 12
-      hookButton(paletteBar2, i - 6, ID_PALETTE + i)
-    ELSE
-      hookButton(paletteBar3, i - 12, ID_PALETTE + i)
-    ENDIF
-    -> a component whose MUI class is not installed cannot be added: grey out its button
-    IF kindClass(i + 1)
-      IF classInstalled(kindClass(i + 1)) = FALSE
-        IF i < 6
-          doMethodA(paletteBar, [MUIM_Toolbar_Set, i, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
-        ELSEIF i < 12
-          doMethodA(paletteBar2, [MUIM_Toolbar_Set, i - 6, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
-        ELSE
-          doMethodA(paletteBar3, [MUIM_Toolbar_Set, i - 12, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
-        ENDIF
-      ENDIF
-    ENDIF
-  ENDFOR
+  hookPalette(layoutBar, palKinds1)
+  hookPalette(inputBar, palKinds2)
+  hookPalette(displayBar, palKinds3)
 ENDPROC
 
 PROC openWindows()

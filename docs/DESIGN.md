@@ -168,9 +168,11 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
     the selected component;
   - the **component palette**, which belongs here because it only ever acts on
     the selection in the tree below it: clicking a button adds that kind to the
-    selected group (or beside the selected component). It is two short rows of
-    buttons because a Toolbar never wraps: one long row would fix the
-    inspector's minimum width and make the splitter useless;
+    selected group (or beside the selected component). It is split into
+    three tabs (Layout, Input, Display) of short toolbars, because a Toolbar
+    never wraps: one long row would fix the inspector's minimum width and make
+    the splitter useless. `palKinds1..3` list the kinds on each tab in button
+    order; a button's ID is `ID_PALETTE + kind - 1`;
   - the **component tree** (`Listtree.mcc`) with Delete / Up / Down, so the tree
     sits right beside the form selector;
   - a Balance bar, so you can trade height between the tree and the properties;

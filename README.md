@@ -66,7 +66,7 @@ src/Preview.e       standalone live preview: Preview [file.mform]
 src/GenTest.e       smoke test for the reader, writer and generator (no MUI)
 src/designer/       the designer: Designer.e
 src/mcc/            E modules for Listtree.mcc, TextEditor.mcc and Toolbar.mcc
-Images/             toolbar image strips (actions.iff, palette1.iff, palette2.iff)
+Images/             toolbar image strips (actions.iff, layout.iff, input.iff, display.iff)
 tools/              make-icons.ps1: rebuilds the strips from the LED icon pack
 forms/              example forms (sample.mform, kinds.mform, ...)
 Build               AmigaDOS script: compiles everything
