@@ -18,7 +18,9 @@ source.
 - **Form designer:** component tree, property inspector, add / delete / move
   components, live preview of the form as real MUI objects.
 - **Components:** groups (vertical, horizontal), Button, Text, String, Check,
-  Cycle, Radio, Slider, Gauge, List and Pages (tabs).
+  Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, ColGroup (columns), Scroll
+  (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
+  A component whose MUI class is not installed gets a greyed-out palette button.
 - **Entries dialog:** a `...` button beside Title/items opens a small editor with
   one entry per line, for Cycle, Radio and List components.
 - **Properties:** weight, fixed width/height, font, hint, disabled, group frame,

@@ -1,0 +1,12 @@
+Window LayoutDemo "Layout kinds"
+  VGroup root
+    ColGroup cols1 :value=2
+      Text lblA "A:"
+      String edtA ""
+      Text lblB "B:"
+      String edtB ""
+    Spacer spc1 :fixh=8
+    Scroll scr1
+      Button btn1 "Inside a scroll group" @OnClick=btn1Click
+      Button btn2 "Another"
+    Memo mem1 "Hello memo" :weight=200

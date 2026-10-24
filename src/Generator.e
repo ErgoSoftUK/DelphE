@@ -195,6 +195,11 @@ PROC declareLeaves(fh, c: PTR TO component)
     put(fh, '  ')
     put(fh, c.name)
     put(fh, '\n')
+    IF c.kind = CK_MEMO
+      put(fh, '  ')
+      put(fh, c.name)
+      put(fh, 'Slider\n')
+    ENDIF
   ENDIF
   ch := c.firstChild
   WHILE ch
@@ -266,6 +271,17 @@ PROC leafExpr(fh, c: PTR TO component)
       putPair(fh, ', MUIA_Gauge_Current, ', numOr(c, PF_VALUE, c.value, 0))
       emitLeafExtras(fh, c)
       put(fh, ', End')
+    CASE CK_SPACER
+      put(fh, 'RectangleObject')
+      emitLeafExtras(fh, c)
+      put(fh, ', End')
+    CASE CK_MEMO
+      -> the extras go on the group around the editor and its scrollbar
+      put(fh, 'Mui_NewObjectA(\aTextEditor.mcc\a, [MUIA_TextEditor_Slider, self.')
+      put(fh, c.name)
+      put(fh, 'Slider, MUIA_TextEditor_Contents, ')
+      quoted(fh, c.title)
+      put(fh, ', TAG_DONE])')
     CASE CK_LIST
       put(fh, 'ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, ')
       putItems(fh, c.title)
@@ -278,6 +294,11 @@ ENDPROC
 PROC createLeaves(fh, c: PTR TO component)
   DEF ch: PTR TO component
   IF isContainer(c.kind) = FALSE
+    IF c.kind = CK_MEMO
+      put(fh, '  self.')
+      put(fh, c.name)
+      put(fh, 'Slider := ScrollbarObject, MUIA_Group_Horiz, FALSE, End\n')
+    ENDIF
     put(fh, '  self.')
     put(fh, c.name)
     put(fh, ' := ')
@@ -296,6 +317,24 @@ ENDPROC
 -> Emits one expression with no trailing comma; the caller adds it.
 PROC containerExpr(fh, c: PTR TO component, depth)
   DEF ch: PTR TO component, kind
+
+  IF c.kind = CK_MEMO
+    put(fh, 'HGroup,\n')
+    indent(fh, depth + 1)
+    put(fh, 'MUIA_Group_Spacing, 0,\n')
+    emitGroupExtras(fh, c, depth)
+    indent(fh, depth + 1)
+    put(fh, 'Child, self.')
+    put(fh, c.name)
+    put(fh, ',\n')
+    indent(fh, depth + 1)
+    put(fh, 'Child, self.')
+    put(fh, c.name)
+    put(fh, 'Slider,\n')
+    indent(fh, depth)
+    put(fh, 'End')
+    RETURN
+  ENDIF
 
   IF isContainer(c.kind) = FALSE
     put(fh, 'self.')
@@ -330,6 +369,21 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       put(fh, 'HGroup,\n')
       emitGroupExtras(fh, c, depth)
       emitChildren(fh, c, depth)
+    CASE CK_COLGROUP
+      put(fh, 'ColGroup(')
+      putNum(fh, numOr(c, PF_VALUE, c.value, 2))
+      put(fh, '),\n')
+      emitGroupExtras(fh, c, depth)
+      emitChildren(fh, c, depth)
+    CASE CK_SCROLL
+      -> the children go in a virtual group, which the scroll group scrolls
+      put(fh, 'ScrollgroupObject,\n')
+      emitGroupExtras(fh, c, depth)
+      indent(fh, depth + 1)
+      put(fh, 'MUIA_Scrollgroup_Contents, VirtgroupObject,\n')
+      emitChildren(fh, c, depth + 1)
+      indent(fh, depth + 1)
+      put(fh, 'End,\n')
     CASE CK_PAGES
       put(fh, 'RegisterGroup(')
       putPageTitles(fh, c)
@@ -652,6 +706,18 @@ PROC genPath(path)
   StrAdd(s, '.gen.e', ALL)
 ENDPROC s
 
+-> The generated file has no module for TextEditor.mcc, so a memo gets its tags as constants
+PROC genConstants(fh, forms: PTR TO LONG, n)
+  DEF i, used
+  used := FALSE
+  FOR i := 0 TO n - 1
+    IF usesKind(forms[i], CK_MEMO) THEN used := TRUE
+  ENDFOR
+  IF used
+    put(fh, '-> tags of TextEditor.mcc (the Memo component)\nCONST MUIA_TextEditor_Contents = $ad000002, MUIA_TextEditor_Slider = $ad00001a\n\n')
+  ENDIF
+ENDPROC
+
 -> Opens the generated file and writes its banner
 PROC openGenFile(path)
   DEF fh
@@ -753,6 +819,7 @@ PROC generateFile(path, win: PTR TO component)
   gp := genPath(path)
   fh := openGenFile(gp)
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
+  genConstants(fh, [win], 1)
   genRegion(fh, win, NIL, 0)
   Close(fh)
   res := syncUserFile(path, NIL, [win], 1)
@@ -943,6 +1010,7 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
 
   fh := openGenFile(genPath(path))
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
+  genConstants(fh, forms, n)
   FOR i := 0 TO n - 1
     win := forms[i]
     tag := formTag('type', win)

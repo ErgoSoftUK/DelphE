@@ -9,7 +9,8 @@ OPT MODULE
 OPT EXPORT
 
 ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
-     CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES
+     CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES,
+     CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
@@ -50,15 +51,15 @@ PROC addChild(child: PTR TO component) OF component
   self.lastChild := child
 ENDPROC
 
-PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES)
+PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL)
 
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
-                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages'], kind)
+                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_PAGES
+  FOR k := CK_WINDOW TO CK_MEMO
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -287,3 +288,19 @@ PROC effectiveFont(c: PTR TO component)
     c := c.parent
   ENDWHILE
 ENDPROC 0
+
+-> The MUI class file a kind needs beyond MUI itself, or NIL for the built-in ones
+PROC kindClass(kind)
+  IF kind = CK_MEMO THEN RETURN 'TextEditor.mcc'
+ENDPROC NIL
+
+-> Does c or anything under it have this kind?
+PROC usesKind(c: PTR TO component, kind)
+  DEF ch: PTR TO component
+  IF c.kind = kind THEN RETURN TRUE
+  ch := c.firstChild
+  WHILE ch
+    IF usesKind(ch, kind) THEN RETURN TRUE
+    ch := ch.next
+  ENDWHILE
+ENDPROC FALSE

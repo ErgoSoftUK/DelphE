@@ -43,8 +43,8 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
 DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
-    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
-    inspPages, inspTitles, actionsDef, paletteDef, paletteDef2,
+    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2, paletteBar3,
+    inspPages, inspTitles, actionsDef, paletteDef, paletteDef2, paletteDef3,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
@@ -160,7 +160,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols
   w := 0
   fx := 0
   fy := 0
@@ -172,6 +172,7 @@ PROC showProps(c: PTR TO component)
   isSlider := FALSE
   isGauge := FALSE
   isItems := FALSE
+  isCols := FALSE
   fi := 0
   flags := 0
   IF c
@@ -187,6 +188,7 @@ PROC showProps(c: PTR TO component)
     IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
+    IF c.kind = CK_COLGROUP THEN isCols := TRUE
     IF (c.kind = CK_CYCLE) OR (c.kind = CK_RADIO) OR (c.kind = CK_LIST) OR (c.kind = CK_PAGES) THEN isItems := TRUE
   ENDIF
 
@@ -215,7 +217,7 @@ PROC showProps(c: PTR TO component)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
-  setEnabled(strValue, isSlider OR isGauge)
+  setEnabled(strValue, isSlider OR isGauge OR isCols)
   setEnabled(btnEntries, isItems)
 ENDPROC
 
@@ -1226,7 +1228,14 @@ PROC doAdd(idx)
   DEF kind, target: PTR TO component, c: PTR TO component
 
   commitEdits()
-  kind := idx + 1          -> the cycle lists VGroup..Check, which follow CK_WINDOW
+  kind := idx + 1          -> the palette lists VGroup onwards, which follow CK_WINDOW
+
+  IF kindClass(kind)
+    IF classInstalled(kindClass(kind)) = FALSE
+      status('That component needs a MUI class that is not installed')
+      RETURN
+    ENDIF
+  ENDIF
 
   target := selected
   IF target = NIL THEN target := form
@@ -1245,12 +1254,18 @@ PROC doAdd(idx)
 
   c := newComponent(kind,
          uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
-                              'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs'], idx)),
+                              'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
+                              'spc', 'col', 'scr', 'mem'], idx)),
          ListItem([NIL, NIL, 'Button', 'Label', '', '',
                    'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
-                   'Page 1|Page 2'], idx))
+                   'Page 1|Page 2', NIL, NIL, NIL, ''], idx))
   pushUndo()
   target.addChild(c)
+  -> a column group starts with two columns, shown in the Value field
+  IF kind = CK_COLGROUP
+    c.value := 2
+    c.propFlags := c.propFlags OR PF_VALUE
+  ENDIF
   -> each child of a Pages component is a page: start with two
   IF kind = CK_PAGES
     c.addChild(newComponent(CK_VGROUP, uniqueName('page'), NIL))
@@ -1828,6 +1843,20 @@ PROC makeToolbars()
     MUIA_ShortHelp, TRUE,
   End
   IF paletteBar2 = NIL THEN Raise('Could not create the component palette')
+
+  paletteDef3 := buildBank([
+    Toolbar_HintButton(0, 'Add a spacer (empty space that stretches)', NIL),
+    Toolbar_HintButton(0, 'Add a column group (children laid out in columns)', NIL),
+    Toolbar_HintButton(0, 'Add a scrolling group', NIL),
+    Toolbar_HintButton(0, 'Add a text editor (needs TextEditor.mcc)', NIL),
+    Toolbar_End])
+  paletteBar3 := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('palette3.iff'),
+    MUIA_Toolbar_Description, paletteDef3,
+    MUIA_ShortHelp, TRUE,
+  End
+  IF paletteBar3 = NIL THEN Raise('Could not create the component palette')
 ENDPROC
 
 PROC makeMainWindow()
@@ -1881,6 +1910,7 @@ PROC makeInspectorPanel()
         Child, VGroup, GroupFrameT('Add component'),
           Child, paletteBar,
           Child, paletteBar2,
+          Child, paletteBar3,
         End,
         Child, HSpace(0),
       End,
@@ -1921,7 +1951,7 @@ PROC makeInspectorPanel()
             Child, strMin := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Maximum:'),
             Child, strMax := StringObject, StringFrame, MUIA_String_Contents, '', End,
-            Child, Label2('Value:'),
+            Child, Label2('Value/columns:'),
             Child, strValue := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Hint:'),
             Child, strHint := StringObject, StringFrame, MUIA_String_Contents, '', End,
@@ -2213,8 +2243,26 @@ PROC connectEvents()
   FOR i := 0 TO 12
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
-  FOR i := 0 TO 11
-    IF i < 6 THEN hookButton(paletteBar, i, ID_PALETTE + i) ELSE hookButton(paletteBar2, i - 6, ID_PALETTE + i)
+  FOR i := 0 TO 15
+    IF i < 6
+      hookButton(paletteBar, i, ID_PALETTE + i)
+    ELSEIF i < 12
+      hookButton(paletteBar2, i - 6, ID_PALETTE + i)
+    ELSE
+      hookButton(paletteBar3, i - 12, ID_PALETTE + i)
+    ENDIF
+    -> a component whose MUI class is not installed cannot be added: grey out its button
+    IF kindClass(i + 1)
+      IF classInstalled(kindClass(i + 1)) = FALSE
+        IF i < 6
+          doMethodA(paletteBar, [MUIM_Toolbar_Set, i, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
+        ELSEIF i < 12
+          doMethodA(paletteBar2, [MUIM_Toolbar_Set, i - 6, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
+        ELSE
+          doMethodA(paletteBar3, [MUIM_Toolbar_Set, i - 12, MUIV_Toolbar_Set_Ghosted, MUI_TRUE])
+        ENDIF
+      ENDIF
+    ENDIF
   ENDFOR
 ENDPROC
 
@@ -2233,7 +2281,7 @@ ENDPROC
 PROC handleId(id)
   DEF running
   running := TRUE
-  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 12))
+  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 16))
     doAdd(id - ID_PALETTE)
   ELSE
     SELECT id

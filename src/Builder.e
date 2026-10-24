@@ -15,6 +15,9 @@ MODULE 'muimaster', 'libraries/mui', 'utility/tagitem', '*FormModel'
 
 CONST TAGROOM = 64
 
+-> TextEditor.mcc's own tags (the Memo component), so that this module needs no import
+CONST TE_CONTENTS = $ad000002, TE_SLIDER = $ad00001a
+
 PROC titleOf(c: PTR TO component)
   IF c.title THEN RETURN c.title
 ENDPROC ''
@@ -125,11 +128,13 @@ PROC buildGroup(c: PTR TO component)
   tags := ListCopy(tags, [TAG_IGNORE, 0])
   class := MUIC_Group
   IF c.kind = CK_HGROUP THEN tags := ListAdd(tags, [MUIA_Group_Horiz, MUI_TRUE])
+  IF c.kind = CK_COLGROUP THEN tags := ListAdd(tags, [MUIA_Group_Columns, numberOr(c, PF_VALUE, c.value, 2)])
   IF c.kind = CK_PAGES
     class := MUIC_Register
     tags := ListAdd(tags, [MUIA_Register_Titles, pageTitleList(c, n), MUIA_Register_Frame, MUI_TRUE])
   ENDIF
-  tags := addExtras(tags, c)
+  -> a scroll group holds its children in a virtual group, which it scrolls
+  IF c.kind = CK_SCROLL THEN class := MUIC_Virtgroup ELSE tags := addExtras(tags, c)
 
   ch := c.firstChild
   WHILE ch
@@ -151,6 +156,37 @@ PROC buildGroup(c: PTR TO component)
   tags := ListAdd(tags, [TAG_DONE, 0])
   obj := Mui_NewObjectA(class, tags)
   DisposeLink(tags)
+  IF (c.kind = CK_SCROLL) AND obj
+    tags := List(TAGROOM)
+    tags := ListCopy(tags, [TAG_IGNORE, 0])
+    tags := addExtras(tags, c)
+    tags := ListAdd(tags, [MUIA_Scrollgroup_Contents, obj, TAG_DONE, 0])
+    obj := Mui_NewObjectA(MUIC_Scrollgroup, tags)
+    DisposeLink(tags)
+  ENDIF
+ENDPROC obj
+
+-> A text editor with its scrollbar beside it. Without TextEditor.mcc installed the
+-> form still builds, with a note in its place.
+PROC buildMemo(c: PTR TO component)
+  DEF slider, editor, tags, obj
+  editor := NIL
+  slider := Mui_NewObjectA(MUIC_Scrollbar, [MUIA_Group_Horiz, FALSE, TAG_DONE, 0])
+  IF slider
+    editor := Mui_NewObjectA('TextEditor.mcc', [TE_SLIDER, slider, TE_CONTENTS, titleOf(c), TAG_DONE, 0])
+  ENDIF
+  IF editor = NIL
+    IF slider THEN Mui_DisposeObject(slider)
+    RETURN Mui_NewObjectA(MUIC_Text, [MUIA_Frame, MUIV_Frame_Text,
+      MUIA_Text_Contents, 'TextEditor.mcc is not installed', TAG_DONE, 0])
+  ENDIF
+  tags := List(TAGROOM)
+  tags := ListCopy(tags, [TAG_IGNORE, 0])
+  tags := ListAdd(tags, [MUIA_Group_Horiz, MUI_TRUE, MUIA_Group_Spacing, 0])
+  tags := addExtras(tags, c)
+  tags := ListAdd(tags, [MUIA_Group_Child, editor, MUIA_Group_Child, slider, TAG_DONE, 0])
+  obj := Mui_NewObjectA(MUIC_Group, tags)
+  DisposeLink(tags)
 ENDPROC obj
 
 PROC buildObject(c: PTR TO component)
@@ -158,7 +194,8 @@ PROC buildObject(c: PTR TO component)
   kind := c.kind
   t := titleOf(c)
 
-  IF (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) THEN RETURN buildGroup(c)
+  IF (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) THEN RETURN buildGroup(c)
+  IF kind = CK_MEMO THEN RETURN buildMemo(c)
 
   tags := List(TAGROOM)
   tags := ListCopy(tags, [TAG_IGNORE, 0])
@@ -208,6 +245,8 @@ PROC buildObject(c: PTR TO component)
         [MUIA_Frame, MUIV_Frame_Gauge, MUIA_Gauge_Horiz, MUI_TRUE,
          MUIA_Gauge_Max, numberOr(c, PF_MAX, c.maxV, 100),
          MUIA_Gauge_Current, numberOr(c, PF_VALUE, c.value, 0)])
+    CASE CK_SPACER
+      class := MUIC_Rectangle
     CASE CK_LIST
       class := MUIC_Listview
       tags := ListAdd(tags, [MUIA_Listview_List,

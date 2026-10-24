@@ -58,11 +58,21 @@ source keeps the compiled program independent of the IDE.
 | Gauge   | (none)                      |                 | max / value                    |
 | List    | entries, separated by `\|`  | `OnDoubleClick` | static entries                 |
 | Pages   | tab titles, separated by `\|` |               | container: each child is a page |
+| Spacer  | (none)                      |                 | empty space; give it a weight or size |
+| ColGroup | (none)                     |                 | container; Value = number of columns |
+| Scroll  | (none)                      |                 | container: its children scroll in a virtual group |
+| Memo    | initial text                |                 | TextEditor.mcc with its scrollbar; needs that class |
 
 Optional properties (any component except the window): weight, fixed width,
 fixed height, font, hint (bubble help) and disabled; groups also have a frame.
 Properties left blank are simply not emitted, so MUI's defaults apply.
 
+A component can need a MUI class beyond MUI itself (`kindClass` in FormModel.e; today only
+Memo, with `TextEditor.mcc`). The designer checks whether the class file is in `MUI:Libs/MUI/`
+or `LIBS:MUI/` (`classInstalled` in Util.e) and greys out the palette button if not. The
+live preview shows a note in place of a missing Memo. Generated programs get the editor's
+tag values as `CONST`s instead of importing a module. The check only covers the machine
+running DelphE, not the one the program runs on.
 ## The .mform format
 
 Indented text, one component per line, two spaces per nesting level:

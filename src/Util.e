@@ -222,3 +222,18 @@ PROC imagePath(name)
     IF canOpen(s) THEN RETURN s
   ENDFOR
 ENDPROC s
+
+-> Is this MUI class (a file such as 'TextEditor.mcc') installed where MUI looks for it?
+PROC classInstalled(name)
+  DEF path, found
+  path := String(StrLen(name) + 20)
+  StrCopy(path, 'MUI:Libs/MUI/', ALL)
+  StrAdd(path, name, ALL)
+  found := canOpen(path)
+  IF found = FALSE
+    StrCopy(path, 'LIBS:MUI/', ALL)
+    StrAdd(path, name, ALL)
+    found := canOpen(path)
+  ENDIF
+  DisposeLink(path)
+ENDPROC found
