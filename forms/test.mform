@@ -1,7 +1,0 @@
-Window Test "New Form"
-  VGroup root
-    Text lblHello "Hello"
-    Button btn1 "Button" @OnClick=btn1Click
-    Button btn2 "Button"
-    Button btn3 "Button"
-    Button btn4 "Button"

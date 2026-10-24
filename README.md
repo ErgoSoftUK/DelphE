@@ -63,12 +63,14 @@ src/Generator.e     form model -> E source file
 src/Util.e          command line, file requester and string helpers
 src/Project.e       .mproj reader and writer
 src/Preview.e       standalone live preview: Preview [file.mform]
-src/GenTest.e       smoke test for the reader, writer and generator (no MUI)
 src/designer/       the designer: Designer.e
 src/mcc/            E modules for Listtree.mcc, TextEditor.mcc and Toolbar.mcc
 Images/             toolbar image strips (actions.iff, layout.iff, input.iff, display.iff)
-tools/              make-icons.ps1: rebuilds the strips from the LED icon pack
-forms/              example forms (sample.mform, kinds.mform, ...)
+tools/              development tools: make-icons.ps1 (rebuilds the strips from the
+                    LED icon pack), GenTest.e (smoke test for the reader, writer and
+                    generator, no MUI) and PenTest.e (shows TextEditor's pen colours)
+examples/           example forms and the demo project (demo.mproj)
+scratch/            your own test files; git-ignores it, so it stays local
 Build               AmigaDOS script: compiles everything
 Watch               optional build watcher (see below)
 docs/DESIGN.md      design notes, file formats, E and MUI gotchas
@@ -88,11 +90,11 @@ Output goes to `build.out`. This compiles the modules, runs the smoke test
 ## Running
 
 ```
-src/designer/designer [forms/sample.mform]
-src/preview [forms/sample.mform]
+src/designer/designer [examples/sample.mform]
+src/preview [examples/sample.mform]
 ```
 
-With no argument, both open `forms/sample.mform`.
+With no argument, both open `examples/sample.mform`.
 
 ## Build watcher
 
@@ -130,7 +132,7 @@ the watcher.
 
 A project is a program with more than one form. **Project > New project...**
 creates a `.mproj` file with a first form beside it; **Open project...** opens
-one (or start the designer with `src/designer/designer forms/demo.mproj`). The
+one (or start the designer with `src/designer/designer examples/demo.mproj`). The
 **form drop-down** at the top of the Object Inspector lists the forms: pick one
 to edit it. The toolbar has New project and Open project, and the Project menu
 has Remove form and Make main form. In a project, **New form** and **Open form**

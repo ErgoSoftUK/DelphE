@@ -1,7 +1,7 @@
 /*
 ** Preview: opens a .mform file as a live MUI window, no compile step.
 **
-**   Preview [file.mform]        (default: forms/sample.mform)
+**   Preview [file.mform]        (default: examples/sample.mform)
 */
 
 OPT PREPROCESS

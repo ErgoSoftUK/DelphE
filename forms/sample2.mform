@@ -1,7 +1,0 @@
-Window MainForm2 "Hello DelphE from form 2"
-  VGroup root
-    Text lblName "Name:"
-    String edtName ""
-    HGroup row
-      Button btnOk "Test1234" @OnClick=btnOkClick :hint="Test hint"
-      Button btnCancel "Cancel"

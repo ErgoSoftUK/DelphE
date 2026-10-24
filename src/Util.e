@@ -29,8 +29,8 @@ ENDPROC fh <> 0
 
 -> The sample form, found from the DelphE drawer or from src
 PROC defaultFormPath()
-  IF canOpen('forms/sample.mform') THEN RETURN 'forms/sample.mform'
-ENDPROC '/forms/sample.mform'
+  IF canOpen('examples/sample.mform') THEN RETURN 'examples/sample.mform'
+ENDPROC '/examples/sample.mform'
 
 -> Copies a C-style string into a new E-string
 PROC copyStr(p)

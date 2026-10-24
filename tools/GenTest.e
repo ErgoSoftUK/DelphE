@@ -1,15 +1,15 @@
 /*
 ** Smoke test for the .mform reader/writer and the generator.
-** Needs no MUI: reads forms/sample.mform, echoes it back through the writer,
+** Needs no MUI: reads examples/sample.mform, echoes it back through the writer,
 ** then creates or updates MainForm.e (a complete program) with generateFile().
 */
 
-MODULE '*FormModel', '*MForm', '*Generator'
+MODULE '*/src/FormModel', '*/src/MForm', '*/src/Generator'
 
 PROC main()
   DEF win: PTR TO component, res, first, glines
 
-  win := readForm('/forms/sample.mform')
+  win := readForm('/examples/sample.mform')
   IF win = NIL
     WriteF('Could not read the form\n')
     RETURN

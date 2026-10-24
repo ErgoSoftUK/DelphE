@@ -292,8 +292,10 @@ A project holds at most 16 forms.
 
 ## Building and testing
 
-`Build` compiles everything and runs `GenTest`, which reads `forms/sample.mform`,
-writes it back through the writer, and creates or updates `src/MainForm.e`.
+`Build` compiles everything and runs `GenTest`, which reads `examples/sample.mform`,
+writes it back through the writer, and creates `tools/MainForm.e` and its `.gen.e`; the
+program `ec` then compiles (`MainFormBuilt`) is put together by `buildSource`, as for a real
+compile.
 `Watch` lets a host machine trigger builds by creating a file; see the README.
 
 ## E and MUI gotchas found along the way

@@ -1,7 +1,7 @@
 /*
 ** DelphE form designer
 **
-**   Designer [file.mform]        (default: forms/sample.mform)
+**   Designer [file.mform]        (default: examples/sample.mform)
 **
 ** Left: the component tree of the form. Right: properties of the selected
 ** component. Save writes the .mform back; Preview shows the form as live MUI
