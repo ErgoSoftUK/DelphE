@@ -1097,13 +1097,13 @@ PROC compileCode()
   IF ok
     -> the program goes next to the source, where Run starts it from
     cmd := String(StrLen(bdir) + StrLen(programName()) + StrLen(dir) + 40)
-    StrCopy(cmd, 'copy \a', ALL)
+    StrCopy(cmd, 'copy \q', ALL)
     StrAdd(cmd, bdir, ALL)
     StrAdd(cmd, '/', ALL)
     StrAdd(cmd, programName(), ALL)
-    StrAdd(cmd, '\a to \a', ALL)
+    StrAdd(cmd, '\q to \q', ALL)
     StrAdd(cmd, dir, ALL)
-    StrAdd(cmd, '\a QUIET', ALL)
+    StrAdd(cmd, '\q QUIET', ALL)
     Execute(cmd, 0, 0)
     status('Compiled with no errors')
     RETURN TRUE
