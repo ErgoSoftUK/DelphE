@@ -30,7 +30,7 @@ source.
 - **Code editor** (TextEditor.mcc) with Compile and Run, compiler output, and
   jump to the line of a compile error.
 - **Project menu** (New, Open, Save, Save As, Quit), **Edit menu** (Undo, Redo,
-  Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run),
+  Delete, Move up/down) and **Build menu** (Preview, Generate, Compile, Run; Generate is menu-only),
   with unsaved-changes prompts.
 - **Projects:** a `.mproj` file lists several forms. Generate writes one program
   holding every form, and a handler can open another form (`fmSettings.show()`).
@@ -117,10 +117,10 @@ the watcher.
    Moves the form cannot hold (for example, a second group next to the window's
    one group) are refused and the tree snaps back.
 3. **Preview form** (Build menu) shows the form as it is right now.
-4. **Generate code** writes `<WindowName>.e` next to the `.mform` file. Select a
-   component with a handler and click **Edit** to jump to its procedure.
-5. **Compile** and **Run** (toolbar, Build menu or the Code tab) build and
-   start the program.
+4. **Compile** and **Run** (toolbar, Build menu or the Code tab) first regenerate
+   `<WindowName>.e` next to the `.mform` file, then build and start the program.
+   Select a component with a handler and click **Edit** to jump to its procedure.
+   Build > **Generate code** regenerates without compiling.
 
 ### Projects
 
@@ -132,14 +132,14 @@ to edit it. The toolbar has New project and Open project, and the Project menu
 has Remove form and Make main form. In a project, **New form** and **Open form**
 add to the project, and **Save** writes every form and the project file.
 
-Generate writes a single `<ProjectName>.e` with every form in it, and Compile and
-Run build that program. The first form is the main form and opens at start;
+Generating writes a single `<ProjectName>.e` with every form in it, and Compile and
+Run regenerate and build that program. The first form is the main form and opens at start;
 closing it ends the program. Other forms open and close with `show()` and
 `hide()`, which every handler can call on the form's global variable, named
 `fm` plus the window name (`fmDemoSettings.show()`).
 
 Generated files contain `DELPHE BEGIN` and `DELPHE END` markers. Edit your code
-below the markers; the section between them is rewritten on every Generate.
+below the markers; the section between them is rewritten on every generate (which Compile and Run do for you).
 
 ## Credits
 

@@ -428,7 +428,7 @@ PROC commitHandler()
   pushUndo()
   c.handler := copyStr(p)
   markDirty()
-  status('Handler set (Generate adds the stub)')
+  status('Handler set (the stub is added when you compile)')
 ENDPROC
 
 -> Fills the Handler gadget with <component><Click|Enter|Change>
@@ -512,7 +512,7 @@ PROC loadCode()
   buf, len := readAll(path)
   IF buf = NIL
     set(editor, MUIA_TextEditor_Contents, '')
-    set(txtCodePath, MUIA_Text_Contents, 'No code file yet: click Generate')
+    set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Compile or Build > Generate code creates it')
   ELSE
     set(editor, MUIA_TextEditor_Contents, buf)
     -> path is not freed: the text gadget may keep the pointer
@@ -1056,12 +1056,8 @@ ENDPROC
 PROC compileCode()
   DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg
 
-  commitEdits()
-  saveCode()
-  IF canOpen(outputPath()) = FALSE
-    status('Nothing to compile yet: click Generate first')
-    RETURN FALSE
-  ENDIF
+  -> bring the generated file up to date first (this also saves the editor)
+  IF regenerate() <> GEN_OK THEN RETURN FALSE
 
   status('Compiling...')
   dir := outputDir()
@@ -1732,7 +1728,6 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Remove this form from the project', NIL),
     Toolbar_Space,
     Toolbar_HintButton(0, 'Preview the form in its own window', NIL),
-    Toolbar_HintButton(0, 'Generate code', NIL),
     Toolbar_Space,
     Toolbar_HintButton(0, 'Compile', NIL),
     Toolbar_HintButton(0, 'Compile and run', NIL),
@@ -2173,8 +2168,8 @@ PROC connectEvents()
 
   -> toolbar buttons are numbered in order, spaces included; 0 = a space
   ids := [ID_NEWPROJ, ID_OPENPROJ, 0, ID_NEW, ID_OPEN, ID_SAVE, 0, ID_REMOVEFORM, 0,
-          ID_PREVIEW, ID_GENERATE, 0, ID_COMPILE, ID_RUN]
-  FOR i := 0 TO 13
+          ID_PREVIEW, 0, ID_COMPILE, ID_RUN]
+  FOR i := 0 TO 12
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
   FOR i := 0 TO 11

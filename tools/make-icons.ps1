@@ -10,7 +10,7 @@ param([string]$IconDir = 'Z:\Amiga\XFer\icons\led_icons_icons_pack_120731',
 Add-Type -AssemblyName System.Drawing
 
 $strips = [ordered]@{
-  'actions'    = 'package', 'box', 'page_2', 'folder', 'disk', 'application_delete', 'eye', 'cog', 'hammer', 'control_play'
+  'actions'    = 'package', 'box', 'page_2', 'folder', 'disk', 'application_delete', 'eye', 'hammer', 'control_play'
   'palette1'   = 'layout_split_vertical', 'layout_split', 'tab', 'font', 'textfield', 'accept'
   'palette2'   = 'ui_combo_box', 'target', 'ui_slider_2', 'chart_bar', 'application_view_list', 'ui_tab_content'
 }

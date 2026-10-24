@@ -182,8 +182,9 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   form, Make main form, Save, Save As, Quit), Edit (Undo, Redo, Delete,
   Move up, Move down), Build (Preview, Generate, Compile, Run) and View (Form tab,
   Code tab, Show/hide object inspector).
-- Edits commit when you press Return, change the selection, or Save, Preview or
-  Generate. Checkmarks and titles apply immediately.
+- Edits commit when you press Return, change the selection, or Save, Preview,
+  Generate, Compile or Run. Compile and Run regenerate first; Generate has no
+  toolbar button. Checkmarks and titles apply immediately.
 - A `*` in the window title marks unsaved changes; New, Open and Quit ask first.
 - **Undo / redo** keeps whole-form snapshots: just before each change the
   form is deep-copied (`cloneTree`) onto an undo stack of up to 40, together
