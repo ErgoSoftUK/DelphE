@@ -1,0 +1,7 @@
+Window FontsDemo "Fonts"
+  VGroup root :font=big
+    Text lblTitle "A title" :font=title
+    Text lblSmall "Small print" :font=tiny
+    Button btnPlain "Plain"
+    Button btnFixed "Fixed" :font=fixed @OnClick=btnFixedClick
+    String edtMono "" :font=fixed

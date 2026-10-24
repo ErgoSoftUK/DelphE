@@ -60,7 +60,7 @@ source keeps the compiled program independent of the IDE.
 | Pages   | tab titles, separated by `\|` |               | container: each child is a page |
 
 Optional properties (any component except the window): weight, fixed width,
-fixed height, hint (bubble help) and disabled; groups also have a frame.
+fixed height, font, hint (bubble help) and disabled; groups also have a frame.
 Properties left blank are simply not emitted, so MUI's defaults apply.
 
 ## The .mform format
@@ -85,7 +85,8 @@ Window MainForm "Hello DelphE"
 - The title is quoted and optional. Everything after it is unquoted.
 - `@OnClick=handler` binds the kind's event to a procedure name.
 - Properties: `:weight=N`, `:fixw=N`, `:fixh=N`, `:min=N`, `:max=N`,
-  `:value=N`, `:hint="text"`, `:disabled`, `:frame`.
+  `:value=N`, `:font=name` (normal, tiny, big, title, fixed, list or button),
+  `:hint="text"`, `:disabled`, `:frame`.
 - Names must start with a lowercase letter (E treats capitalised identifiers as
   constants). Window names are exempt because the generator prefixes `t`.
 

@@ -42,7 +42,7 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     redoTrees[40]: ARRAY OF LONG, redoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
-DEF inspPanel, inspBalance, inspShown, pages, pageTitles, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
+DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
     liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
     inspPages, inspTitles, actionsDef, paletteDef, paletteDef2,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
@@ -160,7 +160,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi
   w := 0
   fx := 0
   fy := 0
@@ -172,6 +172,7 @@ PROC showProps(c: PTR TO component)
   isSlider := FALSE
   isGauge := FALSE
   isItems := FALSE
+  fi := 0
   flags := 0
   IF c
     flags := c.propFlags
@@ -181,6 +182,7 @@ PROC showProps(c: PTR TO component)
     mn := c.minV
     mx := c.maxV
     vl := c.value
+    IF flags AND PF_FONT THEN fi := c.fontIdx
     IF c.kind <> CK_WINDOW THEN usable := TRUE
     IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
@@ -201,12 +203,14 @@ PROC showProps(c: PTR TO component)
   ENDIF
   showFlag(chkDisabled, flags, PF_DISABLED)
   showFlag(chkFrame, flags, PF_FRAME)
+  set(cycFont, MUIA_Cycle_Active, fi)
 
   setEnabled(strWeight, usable)
   setEnabled(strFixW, usable)
   setEnabled(strFixH, usable)
   setEnabled(strHint, usable)
   setEnabled(chkDisabled, usable)
+  setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
@@ -250,7 +254,7 @@ ENDPROC b, v, ok
 -> Applies the property gadgets to the selected component
 PROC commitProps()
   DEF c: PTR TO component, nf, nw, nfx, nfy, nmn, nmx, nvl
-  DEF p, sel, bit, v, ok, h: PTR TO CHAR, i
+  DEF p, sel, bit, v, ok, h: PTR TO CHAR, i, fnt
   c := selected
   IF c = NIL THEN RETURN
   IF c.kind = CK_WINDOW THEN RETURN
@@ -289,6 +293,9 @@ PROC commitProps()
     IF sel THEN nf := nf OR PF_FRAME
   ENDIF
 
+  get(cycFont, MUIA_Cycle_Active, {fnt})
+  IF fnt > 0 THEN nf := nf OR PF_FONT
+
   get(strHint, MUIA_String_Contents, {p})
   h := copyStr(p)
   -> a double quote would end the quoted hint in the .mform file
@@ -299,7 +306,7 @@ PROC commitProps()
 
   IF nf = c.propFlags
     IF (nw = c.weight) AND (nfx = c.fixW) AND (nfy = c.fixH)
-      IF (nmn = c.minV) AND (nmx = c.maxV) AND (nvl = c.value)
+      IF (nmn = c.minV) AND (nmx = c.maxV) AND (nvl = c.value) AND (fnt = c.fontIdx)
         IF (nf AND PF_HINT) = 0 THEN RETURN
         IF StrLen(h) = StrLen(c.hint)
           IF StrCmp(h, c.hint, ALL) THEN RETURN
@@ -316,6 +323,7 @@ PROC commitProps()
   c.minV := nmn
   c.maxV := nmx
   c.value := nvl
+  c.fontIdx := fnt
   c.hint := h
   markDirty()
   status('Properties updated')
@@ -1867,6 +1875,12 @@ PROC makeInspectorPanel()
             Child, strValue := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Hint:'),
             Child, strHint := StringObject, StringFrame, MUIA_String_Contents, '', End,
+            Child, Label2('Font:'),
+            -> MUI's standard fonts; they follow the user's MUI preferences
+            Child, cycFont := CycleObject,
+              MUIA_Font, MUIV_Font_Button,
+              MUIA_Cycle_Entries, ['Default', 'Normal', 'Tiny', 'Big', 'Title', 'Fixed', 'List', 'Button', NIL],
+            End,
             Child, Label2('Disabled:'),
             -> a fixed-size gadget would stop its whole column stretching, so each
             -> checkmark gets a stretchy neighbour
@@ -2134,6 +2148,8 @@ PROC connectEvents()
   doMethodA(chkDisabled, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(chkFrame, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(cycFont, [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(btnEditHandler, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_EDITHANDLER])

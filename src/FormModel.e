@@ -13,7 +13,7 @@ ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
-      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256
+      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512
 
 OBJECT component
   kind
@@ -32,6 +32,7 @@ OBJECT component
   minV                                -> slider minimum (PF_MIN)
   maxV                                -> slider/gauge maximum (PF_MAX)
   value                               -> slider/gauge value (PF_VALUE)
+  fontIdx                             -> one of MUI's standard fonts, see fontName (PF_FONT)
   uiNode                              -> designer's tree node for this component
 ENDOBJECT
 
@@ -178,6 +179,7 @@ PROC cloneTree(c: PTR TO component)
   n.minV := c.minV
   n.maxV := c.maxV
   n.value := c.value
+  n.fontIdx := c.fontIdx
   ch := c.firstChild
   WHILE ch
     n.addChild(cloneTree(ch))
@@ -262,3 +264,16 @@ PROC nthItem(s, k)
     ENDIF
   ENDFOR
 ENDPROC NIL
+
+-> MUI's standard fonts, which follow the user's MUI preferences; 0 means "not set"
+PROC fontName(idx) IS ListItem(['', 'normal', 'tiny', 'big', 'title', 'fixed', 'list', 'button'], idx)
+
+-> The index of a font name (1 to 7), or 0 if it is not one
+PROC fontIndex(name)
+  DEF k
+  FOR k := 1 TO 7
+    IF StrLen(name) = StrLen(fontName(k))
+      IF StrCmp(name, fontName(k), ALL) THEN RETURN k
+    ENDIF
+  ENDFOR
+ENDPROC 0

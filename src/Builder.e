@@ -46,6 +46,26 @@ PROC numberOr(c: PTR TO component, bit, v, dflt)
   IF c.propFlags AND bit THEN RETURN v
 ENDPROC dflt
 
+-> The MUIA_Font value for a font index (see fontName in FormModel)
+PROC fontValue(idx)
+  SELECT idx
+    CASE 1
+      RETURN MUIV_Font_Normal
+    CASE 2
+      RETURN MUIV_Font_Tiny
+    CASE 3
+      RETURN MUIV_Font_Big
+    CASE 4
+      RETURN MUIV_Font_Title
+    CASE 5
+      RETURN MUIV_Font_Fixed
+    CASE 6
+      RETURN MUIV_Font_List
+    CASE 7
+      RETURN MUIV_Font_Button
+  ENDSELECT
+ENDPROC MUIV_Font_Inherit
+
 -> Adds the tags for the component's optional properties; returns the list
 PROC addExtras(tags, c: PTR TO component)
   DEF flags
@@ -54,6 +74,7 @@ PROC addExtras(tags, c: PTR TO component)
   IF flags AND PF_FIXW THEN tags := ListAdd(tags, [MUIA_FixWidth, c.fixW])
   IF flags AND PF_FIXH THEN tags := ListAdd(tags, [MUIA_FixHeight, c.fixH])
   IF flags AND PF_DISABLED THEN tags := ListAdd(tags, [MUIA_Disabled, MUI_TRUE])
+  IF flags AND PF_FONT THEN tags := ListAdd(tags, [MUIA_Font, fontValue(c.fontIdx)])
   IF flags AND PF_HINT THEN tags := ListAdd(tags, [MUIA_ShortHelp, c.hint])
   IF isContainer(c.kind) AND (c.kind <> CK_WINDOW)
     IF flags AND PF_FRAME

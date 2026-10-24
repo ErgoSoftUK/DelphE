@@ -21,8 +21,8 @@ source.
   Cycle, Radio, Slider, Gauge, List and Pages (tabs).
 - **Entries dialog:** a `...` button beside Title/items opens a small editor with
   one entry per line, for Cycle, Radio and List components.
-- **Properties:** weight, fixed width/height, hint, disabled, group frame, and
-  min/max/value for sliders and gauges.
+- **Properties:** weight, fixed width/height, font, hint, disabled, group frame,
+  and min/max/value for sliders and gauges.
 - **Events:** one per component kind (`OnClick`, `OnEnter`, `OnChange`,
   `OnDoubleClick`), bound to a handler procedure.
 - **Code generation:** one E file per form, containing a regenerated section and

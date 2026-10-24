@@ -86,6 +86,9 @@ PROC numOr(c: PTR TO component, bit, v, dflt)
   IF c.propFlags AND bit THEN RETURN v
 ENDPROC dflt
 
+-> The MUIV_Font_ constant for a font index (see fontName in FormModel)
+PROC fontConst(idx) IS ListItem(['', 'MUIV_Font_Normal', 'MUIV_Font_Tiny', 'MUIV_Font_Big', 'MUIV_Font_Title', 'MUIV_Font_Fixed', 'MUIV_Font_List', 'MUIV_Font_Button'], idx)
+
 -> Optional properties of a leaf widget as tags, each starting with ", "
 PROC emitLeafExtras(fh, c: PTR TO component)
   DEF flags
@@ -94,6 +97,10 @@ PROC emitLeafExtras(fh, c: PTR TO component)
   IF flags AND PF_FIXW THEN putPair(fh, ', MUIA_FixWidth, ', c.fixW)
   IF flags AND PF_FIXH THEN putPair(fh, ', MUIA_FixHeight, ', c.fixH)
   IF flags AND PF_DISABLED THEN put(fh, ', MUIA_Disabled, MUI_TRUE')
+  IF flags AND PF_FONT
+    put(fh, ', MUIA_Font, ')
+    put(fh, fontConst(c.fontIdx))
+  ENDIF
   IF flags AND PF_HINT
     put(fh, ', MUIA_ShortHelp, ')
     quoted(fh, c.hint)
@@ -122,6 +129,12 @@ PROC emitGroupExtras(fh, c: PTR TO component, depth)
   IF flags AND PF_DISABLED
     indent(fh, depth + 1)
     put(fh, 'MUIA_Disabled, MUI_TRUE,\n')
+  ENDIF
+  IF flags AND PF_FONT
+    indent(fh, depth + 1)
+    put(fh, 'MUIA_Font, ')
+    put(fh, fontConst(c.fontIdx))
+    put(fh, ',\n')
   ENDIF
   IF flags AND PF_HINT
     indent(fh, depth + 1)

@@ -53,6 +53,10 @@ PROC writeForm(fh, c: PTR TO component, depth)
   IF c.propFlags AND PF_MIN THEN putProp(fh, ' :min=', c.minV)
   IF c.propFlags AND PF_MAX THEN putProp(fh, ' :max=', c.maxV)
   IF c.propFlags AND PF_VALUE THEN putProp(fh, ' :value=', c.value)
+  IF c.propFlags AND PF_FONT
+    put(fh, ' :font=')
+    put(fh, fontName(c.fontIdx))
+  ENDIF
   IF c.propFlags AND PF_DISABLED THEN put(fh, ' :disabled')
   IF c.propFlags AND PF_FRAME THEN put(fh, ' :frame')
   IF c.propFlags AND PF_HINT
@@ -145,6 +149,7 @@ PROC tokString(tok)
 ENDPROC h
 
 PROC applyProp(c: PTR TO component, tok)
+  DEF k
   IF tokIs(tok, 'weight')
     c.weight := tokNumber(tok)
     c.propFlags := c.propFlags OR PF_WEIGHT
@@ -163,6 +168,12 @@ PROC applyProp(c: PTR TO component, tok)
   ELSEIF tokIs(tok, 'value')
     c.value := tokNumber(tok)
     c.propFlags := c.propFlags OR PF_VALUE
+  ELSEIF tokIs(tok, 'font')
+    k := fontIndex(tokString(tok))
+    IF k > 0
+      c.fontIdx := k
+      c.propFlags := c.propFlags OR PF_FONT
+    ENDIF
   ELSEIF tokIs(tok, 'disabled')
     c.propFlags := c.propFlags OR PF_DISABLED
   ELSEIF tokIs(tok, 'frame')
