@@ -9,9 +9,11 @@ source.
 
 ## What works
 
-- **Four windows, Delphi 3 style:** a main window with menus, a toolbar and a
-  component palette; the Form window (structure tree beside the live form); the
-  Object Inspector; and the Code window. Each remembers its position.
+- **One window, Delphi style:** the actions toolbar on top, the Object Inspector
+  docked at the left (form drop-down, component palette, component tree and
+  properties), the live form and the code on two tabs filling the rest,
+  and a status line at the bottom. A Balance bar between the inspector and the
+  tabs sets the split, and the inspector can be hidden from the View menu.
 
 - **Form designer:** component tree, property inspector, add / delete / move
   components, live preview of the form as real MUI objects.
@@ -31,7 +33,7 @@ source.
 - **Projects:** a `.mproj` file lists several forms. Generate writes one program
   holding every form, and a handler can open another form (`fmSettings.show()`).
 - **Undo and redo** for every change to the form (up to 40 steps).
-- **Drag and drop** in the Form window's tree to reorder components or move them
+- **Drag and drop** in the component tree to reorder components or move them
   into another group.
 
 See `docs/DESIGN.md` for how it fits together.
@@ -59,7 +61,7 @@ src/Preview.e       standalone live preview: Preview [file.mform]
 src/GenTest.e       smoke test for the reader, writer and generator (no MUI)
 src/designer/       the designer: Designer.e
 src/mcc/            E modules for Listtree.mcc, TextEditor.mcc and Toolbar.mcc
-Images/             toolbar image strips (actions.iff, components.iff)
+Images/             toolbar image strips (actions.iff, palette1.iff, palette2.iff)
 tools/              make-icons.ps1: rebuilds the strips from the LED icon pack
 forms/              example forms (sample.mform, kinds.mform, ...)
 Build               AmigaDOS script: compiles everything
@@ -103,20 +105,20 @@ the watcher.
 ## Using the designer
 
 1. **Open** a form, or **New** to start one (toolbar or Project menu). Select a
-   component in the Form window's tree, then edit it in the Object Inspector:
-   its name, title, layout properties, and (on the Events page) its handler.
+   component in the tree in the Object Inspector, then edit it just below: its
+   name, title, layout properties, and (on the Events page) its handler.
    Names must start with a lowercase letter, and must be unique.
-2. Click a component in the **palette** on the main window to add it inside the
-   selected group, or beside the selected component. The Form window shows the
-   result live, and has Delete, Up and Down for the selected component. You can
-   also drag an entry in the tree to a new place, including into another group.
+2. Click a component in the **palette** just above the tree to add it inside the
+   selected group, or beside the selected component. The Form tab shows the
+   result live. The tree has Delete, Up and Down for the selected component, and
+   you can also drag an entry to a new place, including into another group.
    Moves the form cannot hold (for example, a second group next to the window's
    one group) are refused and the tree snaps back.
 3. **Preview form** (Build menu) shows the form as it is right now.
 4. **Generate code** writes `<WindowName>.e` next to the `.mform` file. Select a
    component with a handler and click **Edit** to jump to its procedure.
-5. **Compile** and **Run** (toolbar, Build menu or the Code window) build and
-   start the program. Windows you have closed come back from the Window menu.
+5. **Compile** and **Run** (toolbar, Build menu or the Code tab) build and
+   start the program.
 
 ### Projects
 

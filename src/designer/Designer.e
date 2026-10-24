@@ -42,8 +42,8 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     redoTrees[40]: ARRAY OF LONG, redoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
-DEF winInsp, winForm, winCode, liveHolder, liveObj, liveStale, actionsBar, paletteBar,
-    inspPages, inspTitles, actionsDef, paletteDef,
+DEF inspPanel, inspBalance, inspShown, pages, pageTitles, liveHolder, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
+    inspPages, inspTitles, actionsDef, paletteDef, paletteDef2,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
@@ -1334,7 +1334,7 @@ ENDPROC
 -> Menu items 9 and 10 of each window's menus are Undo and Redo
 PROC updateUndoMenu()
   DEF slot, undoItem, redoItem
-  FOR slot := 0 TO 3
+  FOR slot := 0 TO 0
     undoItem := mItems[slot * MENUITEMS + 9]
     redoItem := mItems[slot * MENUITEMS + 10]
     IF undoTop > 0
@@ -1439,15 +1439,28 @@ PROC doRedo()
 ENDPROC
 
 PROC showCode()
-  set(winCode, MUIA_Window_Open, MUI_TRUE)
-  set(winCode, MUIA_Window_Activate, MUI_TRUE)
-  set(winCode, MUIA_Window_ActiveObject, editor)
+  set(pages, MUIA_Group_ActivePage, 1)
+  set(win, MUIA_Window_ActiveObject, editor)
 ENDPROC
 
-PROC showWin(w)
-  set(w, MUIA_Window_Open, MUI_TRUE)
-  set(w, MUIA_Window_Activate, MUI_TRUE)
+
+-> Hides or shows the Object Inspector, to give the form and code the whole window
+PROC toggleInspector()
+  IF inspShown
+    set(inspPanel, MUIA_ShowMe, FALSE)
+    set(inspBalance, MUIA_ShowMe, FALSE)
+    inspShown := FALSE
+  ELSE
+    set(inspPanel, MUIA_ShowMe, MUI_TRUE)
+    set(inspBalance, MUIA_ShowMe, MUI_TRUE)
+    inspShown := TRUE
+  ENDIF
 ENDPROC
+
+PROC showFormTab()
+  set(pages, MUIA_Group_ActivePage, 0)
+ENDPROC
+
 
 /*** live view ***/
 
@@ -1531,13 +1544,13 @@ PROC makeMenu(slot)
       MUIA_Family_Child, m18 := MenuitemObject,
         MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
     End,
-    MUIA_Family_Child, MenuObjectT('Window'),
+    MUIA_Family_Child, MenuObjectT('View'),
       MUIA_Family_Child, m19 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Form', MUIA_Menuitem_Shortcut, '1', End,
+        MUIA_Menuitem_Title, 'Form tab', MUIA_Menuitem_Shortcut, '1', End,
       MUIA_Family_Child, m20 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Object Inspector', MUIA_Menuitem_Shortcut, '2', End,
+        MUIA_Menuitem_Title, 'Code tab', MUIA_Menuitem_Shortcut, '2', End,
       MUIA_Family_Child, m21 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Code', MUIA_Menuitem_Shortcut, '3', End,
+        MUIA_Menuitem_Title, 'Show/hide object inspector', MUIA_Menuitem_Shortcut, '3', End,
     End,
   End
   IF strip = NIL THEN Raise('Failed to create the menus')
@@ -1572,7 +1585,7 @@ PROC hookMenus(windows)
           ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
           ID_UNDO, ID_REDO, ID_DELETE, ID_UP, ID_DOWN,
           ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
-          ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE]
+          ID_SHOWFORM, ID_SHOWCODE, ID_SHOWINSP]
   FOR slot := 0 TO windows - 1
     FOR k := 0 TO MENUITEMS - 1
       hookMenu(mItems[slot * MENUITEMS + k], ListItem(ids, k))
@@ -1658,6 +1671,8 @@ PROC makeToolbars()
   End
   IF actionsBar = NIL THEN Raise('Could not create the toolbar (is Toolbar.mcc installed?)')
 
+  -> the palette is two short rows rather than one long one: a Toolbar never
+  -> wraps, so a single row would fix the inspector's width
   paletteDef := buildBank([
     Toolbar_HintButton(0, 'Add a vertical group', NIL),
     Toolbar_HintButton(0, 'Add a horizontal group', NIL),
@@ -1665,23 +1680,36 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Add a text label', NIL),
     Toolbar_HintButton(0, 'Add a string gadget', NIL),
     Toolbar_HintButton(0, 'Add a checkmark', NIL),
+    Toolbar_End])
+  paletteBar := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('palette1.iff'),
+    MUIA_Toolbar_Description, paletteDef,
+    MUIA_ShortHelp, TRUE,
+  End
+  IF paletteBar = NIL THEN Raise('Could not create the component palette')
+
+  paletteDef2 := buildBank([
     Toolbar_HintButton(0, 'Add a cycle gadget', NIL),
     Toolbar_HintButton(0, 'Add radio buttons', NIL),
     Toolbar_HintButton(0, 'Add a slider', NIL),
     Toolbar_HintButton(0, 'Add a gauge', NIL),
     Toolbar_HintButton(0, 'Add a list', NIL),
     Toolbar_End])
-  paletteBar := ToolbarObject,
+  paletteBar2 := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
-    MUIA_Toolbar_ImageNormal, imagePath('components.iff'),
-    MUIA_Toolbar_Description, paletteDef,
+    MUIA_Toolbar_ImageNormal, imagePath('palette2.iff'),
+    MUIA_Toolbar_Description, paletteDef2,
     MUIA_ShortHelp, TRUE,
   End
-  IF paletteBar = NIL THEN Raise('Could not create the component palette')
+  IF paletteBar2 = NIL THEN Raise('Could not create the component palette')
 ENDPROC
 
 PROC makeMainWindow()
-  -> main window: menus, toolbar, component palette, status line
+  inspShown := TRUE
+
+  -> the whole program in one window: toolbars on top, the inspector docked at
+  -> the left, the form and code tabs filling the rest, the status line below
   win := WindowObject,
     MUIA_Window_Title, 'DelphE Designer',
     MUIA_Window_ID, "DSGN",
@@ -1689,32 +1717,29 @@ PROC makeMainWindow()
     MUIA_Window_LeftEdge, 0,
     MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(0),
     MUIA_Window_Width, MUIV_Window_Width_Screen(100),
+    MUIA_Window_Height, MUIV_Window_Height_Screen(95),
     WindowContents, VGroup,
       Child, HGroup,
         Child, actionsBar,
-        Child, VGroup, GroupFrameT('Components'),
-          Child, paletteBar,
-        End,
         Child, HSpace(0),
+      End,
+      Child, HGroup,
+        Child, inspPanel,
+        Child, inspBalance := BalanceObject, End,
+        Child, pages,
       End,
       Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
     End,
   End
 ENDPROC
 
-PROC makeInspectorWindow()
+PROC makeInspectorPanel()
   inspTitles := ['Properties', 'Events', NIL]
 
-  -> Object Inspector: properties and events of the selected component
-  winInsp := WindowObject,
-    MUIA_Window_Title, 'Object Inspector',
-    MUIA_Window_ID, "DINS",
-    MUIA_Window_Menustrip, makeMenu(1),
-    MUIA_Window_LeftEdge, 0,
-    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
-    MUIA_Window_Width, 300,
-    MUIA_Window_Height, 400,
-    WindowContents, VGroup,
+  -> the Object Inspector, docked at the left: form drop-down, component tree and
+  -> properties
+  inspPanel := VGroup,
+    MUIA_Weight, 30,
       -> the form being edited: pick another form of the project here
       Child, cycHolder := VGroup,
         Child, cycForms := CycleObject,
@@ -1723,7 +1748,33 @@ PROC makeInspectorWindow()
         End,
       End,
       Child, txtKind := TextObject, TextFrame, MUIA_Text_Contents, '', End,
+      -> the component palette: it adds to the selection in the tree just below
+      -> a stretchy space on each side keeps it centred and lets the inspector
+      -> be resized without the palette's width getting in the way
+      Child, HGroup,
+        Child, HSpace(0),
+        Child, VGroup, GroupFrameT('Add component'),
+          Child, paletteBar,
+          Child, paletteBar2,
+        End,
+        Child, HSpace(0),
+      End,
+      -> the component tree, with what acts on the selected component
+      Child, VGroup,
+        MUIA_Weight, 40,
+        Child, ListviewObject,
+          MUIA_Listview_DragType, MUIV_Listview_DragType_Immediate,
+          MUIA_Listview_List, tree,
+        End,
+        Child, HGroup,
+          Child, btnDelete := SimpleButton('Delete'),
+          Child, btnUp := SimpleButton('Up'),
+          Child, btnDown := SimpleButton('Down'),
+        End,
+      End,
+      Child, BalanceObject, End,
       Child, inspPages := RegisterGroup(inspTitles),
+        MUIA_Weight, 60,
         MUIA_Register_Frame, MUI_TRUE,
         Child, VGroup,
           Child, ColGroup(2),
@@ -1779,54 +1830,20 @@ PROC makeInspectorWindow()
           Child, VSpace(0),
         End,
       End,
-    End,
   End
 ENDPROC
 
-PROC makeFormWindow()
-  -> Form window: the structure tree beside the live form
-  winForm := WindowObject,
-    MUIA_Window_Title, 'Form',
-    MUIA_Window_ID, "DFRM",
-    MUIA_Window_Menustrip, makeMenu(2),
-    MUIA_Window_LeftEdge, 305,
-    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(110),
-    MUIA_Window_Width, 560,
-    MUIA_Window_Height, 280,
-    WindowContents, HGroup,
-      Child, VGroup,
-        MUIA_Weight, 35,
-        Child, ListviewObject,
-          MUIA_Listview_DragType, MUIV_Listview_DragType_Immediate,
-          MUIA_Listview_List, tree,
-        End,
-        Child, HGroup,
-          Child, btnDelete := SimpleButton('Delete'),
-          Child, btnUp := SimpleButton('Up'),
-          Child, btnDown := SimpleButton('Down'),
-        End,
-      End,
-      Child, liveHolder := VGroup,
-        MUIA_Weight, 65,
-        GroupFrameT('Form'),
-        Child, RectangleObject, MUIA_Weight, 1, End,
-      End,
+PROC makeEditorPanel()
+  pageTitles := ['Form', 'Code', NIL]
+
+  -> the live form and the generated code, as two tabs filling the rest of the window
+  pages := RegisterGroup(pageTitles),
+    MUIA_Weight, 70,
+    MUIA_Register_Frame, MUI_TRUE,
+    Child, liveHolder := VGroup,
+      Child, RectangleObject, MUIA_Weight, 1, End,
     End,
-  End
-ENDPROC
-
-
-PROC makeCodeWindow()
-  -> Code window: the generated file, and the compiler output below it
-  winCode := WindowObject,
-    MUIA_Window_Title, 'Code',
-    MUIA_Window_ID, "DCOD",
-    MUIA_Window_Menustrip, makeMenu(3),
-    MUIA_Window_LeftEdge, 305,
-    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Delta(410),
-    MUIA_Window_Width, 560,
-    MUIA_Window_Height, 330,
-    WindowContents, VGroup,
+    Child, VGroup,
       Child, HGroup,
         Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
         Child, btnSaveCode := SimpleButton('Save Code'),
@@ -1852,9 +1869,7 @@ ENDPROC
 
 -> All the windows go into one application
 PROC makeApplication()
-  IF (win = NIL) OR (winInsp = NIL) OR (winForm = NIL) OR (winCode = NIL)
-    Raise('Failed to create the windows')
-  ENDIF
+  IF win = NIL THEN Raise('Failed to create the window')
 
   app := ApplicationObject,
     MUIA_Application_Title      , 'DelphE Designer',
@@ -1862,9 +1877,6 @@ PROC makeApplication()
     MUIA_Application_Description, 'DelphE form designer',
     MUIA_Application_Base       , 'DELPHEDESIGNER',
     SubWindow, win,
-    SubWindow, winInsp,
-    SubWindow, winForm,
-    SubWindow, winCode,
   End
 
   IF app = NIL THEN Raise('Failed to create Application.')
@@ -1874,15 +1886,9 @@ ENDPROC
 PROC connectEvents()
   DEF i, ids
 
-  -> closing the main window quits; the others just hide (Window menu)
+  -> closing the window quits
   doMethodA(win, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
     app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])
-  doMethodA(winInsp, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
-    winInsp, 3, MUIM_Set, MUIA_Window_Open, FALSE])
-  doMethodA(winForm, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
-    winForm, 3, MUIM_Set, MUIA_Window_Open, FALSE])
-  doMethodA(winCode, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
-    winCode, 3, MUIM_Set, MUIA_Window_Open, FALSE])
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
@@ -1930,7 +1936,7 @@ PROC connectEvents()
   doMethodA(btnDown, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_DOWN])
 
-  hookMenus(4)
+  hookMenus(1)
   updateUndoMenu()
 
   -> toolbar buttons are numbered in order, spaces included; 0 = a space
@@ -1940,7 +1946,7 @@ PROC connectEvents()
     IF ListItem(ids, i) > 0 THEN hookButton(actionsBar, i, ListItem(ids, i))
   ENDFOR
   FOR i := 0 TO 10
-    hookButton(paletteBar, i, ID_PALETTE + i)
+    IF i < 6 THEN hookButton(paletteBar, i, ID_PALETTE + i) ELSE hookButton(paletteBar2, i - 6, ID_PALETTE + i)
   ENDFOR
 ENDPROC
 
@@ -1949,9 +1955,6 @@ PROC openWindows()
   loadCode()
 
   refreshProjectList()
-  set(winInsp, MUIA_Window_Open, MUI_TRUE)
-  set(winForm, MUIA_Window_Open, MUI_TRUE)
-  set(winCode, MUIA_Window_Open, MUI_TRUE)
   set(win, MUIA_Window_Open, MUI_TRUE)
   showProps(NIL)
   refreshLive()
@@ -2017,11 +2020,11 @@ PROC handleId(id)
       CASE ID_DOWN
         doMove(1)
       CASE ID_SHOWFORM
-        showWin(winForm)
+        showFormTab()
       CASE ID_SHOWINSP
-        showWin(winInsp)
+        toggleInspector()
       CASE ID_SHOWCODE
-        showWin(winCode)
+        showCode()
       CASE ID_NEWPROJ
         doNewProject()
       CASE ID_OPENPROJ
@@ -2080,10 +2083,9 @@ PROC main() HANDLE
   makeTree()
   makeEditors()
   makeToolbars()
+  makeInspectorPanel()
+  makeEditorPanel()
   makeMainWindow()
-  makeInspectorWindow()
-  makeFormWindow()
-  makeCodeWindow()
   makeApplication()
   connectEvents()
   openWindows()

@@ -3,7 +3,7 @@
 #
 #   powershell -File tools\make-icons.ps1 -IconDir <path to led_icons_icons_pack_120731>
 #
-# Output: Images\actions.iff and Images\components.iff
+# Output: Images\actions.iff, palette1.iff and palette2.iff
 param([string]$IconDir = 'Z:\Amiga\XFer\icons\led_icons_icons_pack_120731',
       [string]$OutDir = (Join-Path (Split-Path $PSScriptRoot -Parent) 'Images'))
 
@@ -11,8 +11,8 @@ Add-Type -AssemblyName System.Drawing
 
 $strips = [ordered]@{
   'actions'    = 'package', 'box', 'page_2', 'folder', 'disk', 'application_delete', 'eye', 'cog', 'hammer', 'control_play'
-  'components' = 'layout_split_vertical', 'layout_split', 'tab', 'font', 'textfield', 'accept',
-                 'ui_combo_box', 'target', 'ui_slider_2', 'chart_bar', 'application_view_list'
+  'palette1'   = 'layout_split_vertical', 'layout_split', 'tab', 'font', 'textfield', 'accept'
+  'palette2'   = 'ui_combo_box', 'target', 'ui_slider_2', 'chart_bar', 'application_view_list'
 }
 $planes = 5
 $colours = 1 -shl $planes

@@ -126,18 +126,26 @@ PROC main() ...                                                   (yours)
 
 ## The designer
 
-Four windows, in the style of Delphi 3. MUI keeps each window's position, so
-they reopen where you left them.
+One window, in the style of Delphi 3. MUI keeps its position and size.
 
-- **Main window:** menus, an actions toolbar (new and open project, new and open
-  form, save, remove form, preview, generate, compile, run), the component
-  palette and the status line. Both toolbars are
-  `Toolbar.mcc` with the strips in `Images/` (built by `tools/make-icons.ps1`).
-  Clicking a palette button adds that kind to the selected group.
-- **Form window:** the structure tree (`Listtree.mcc`) with Delete / Up / Down,
-  next to the **live form**: the real MUI objects, rebuilt after each change. MUI
-  has no free positioning or resizing to drag, so components are selected in the
-  tree, not by clicking them in the live form.
+- **Actions toolbar**, across the top: new and open project, new and open form,
+  save, remove form, preview, generate, compile, run. It and the component palette
+  are `Toolbar.mcc` with the strips in `Images/` (built by `tools/make-icons.ps1`).
+- **Object Inspector**, docked at the left, top to bottom:
+  - a drop-down of the project's forms (a Cycle gadget, rebuilt when the list
+    changes, because a Cycle's entries are fixed when it is made) and the kind of
+    the selected component;
+  - the **component palette**, which belongs here because it only ever acts on
+    the selection in the tree below it: clicking a button adds that kind to the
+    selected group (or beside the selected component). It is two short rows of
+    buttons because a Toolbar never wraps: one long row would fix the
+    inspector's minimum width and make the splitter useless;
+  - the **component tree** (`Listtree.mcc`) with Delete / Up / Down, so the tree
+    sits right beside the form selector;
+  - a Balance bar, so you can trade height between the tree and the properties;
+  - a Properties page (name, title or entries, weight, fixed size, min/max/value,
+    hint, disabled, frame) and an Events page (the handler, with New and Edit).
+
   The tree also takes **drag and drop**. It is a small subclass of
   `Listtree.mcc` (`treeDispatcher`, created with `eMui_CreateCustomClass`) that
   lets the Listtree do the moving and then posts a return ID. `onTreeDrop` checks
@@ -150,18 +158,20 @@ they reopen where you left them.
   Leaf-onto-leaf exchange (a Listtree feature) did not work reliably here, and
   an attempt to do the drop ourselves with `MUIM_Listtree_TestPos` picked the
   wrong target, so both were dropped. Use Up / Down or drag onto a group.
-- **Object Inspector:** a drop-down of the project's forms at the top (a Cycle
-  gadget, rebuilt when the list changes, because a Cycle's entries are fixed when
-  it is made), then a Properties page (name, title or entries, weight, fixed
-  size, min/max/value, hint, disabled, frame) and an Events page (the handler,
-  with New and Edit).
-- **Code window:** `TextEditor.mcc` showing the generated file, a read-only pane
-  for compiler output, and Save Code, Reload, Compile and Run.
+- **Form and Code tabs**, filling the rest. **Form** is the **live form**: the
+  real MUI objects, rebuilt after each change. MUI has no free positioning or
+  resizing to drag, so components are selected in the tree, not by clicking them
+  in the live form. **Code** is `TextEditor.mcc` showing the generated file, a
+  read-only pane for compiler output, and Save Code, Reload, Compile and Run. Edit,
+  a compile error and the View menu's Code tab item all switch to the Code tab.
+- A Balance bar sits between the inspector and the tabs, and the View menu can
+  hide the inspector altogether. There is one window, so one menu bar and one
+  set of tooltips: with several windows, an Amiga menu bar and MUI's bubble help
+  only follow the active window.
 - **Menus:** Project (New project, Open project, New form, Open form, Remove
   form, Make main form, Save, Save As, Quit), Edit (Undo, Redo, Delete,
-  Move up, Move down), Build (Preview, Generate, Compile, Run) and Window (Form,
-  Object Inspector, Code). An Amiga menu bar
-  belongs to the active window, so every window gets its own copy.
+  Move up, Move down), Build (Preview, Generate, Compile, Run) and View (Form tab,
+  Code tab, Show/hide object inspector).
 - Edits commit when you press Return, change the selection, or Save, Preview or
   Generate. Checkmarks and titles apply immediately.
 - A `*` in the window title marks unsaved changes; New, Open and Quit ask first.
@@ -185,8 +195,8 @@ introduced by a `/*** ... ***/` comment:
 
 - the tree and inspector (`addTree`, `onSelect`, `commitName`, `commitProps`, ...)
 - files, undo and redo, drag and drop, projects, compile and run
-- building the program: `makeTree`, `makeEditors`, `makeToolbars`, one
-  `make...Window` per window, `makeApplication`, `connectEvents`, `openWindows`
+- building the program: `makeTree`, `makeEditors`, `makeToolbars`,
+  the panels (`makeInspectorPanel`, `makeEditorPanel`) and `makeMainWindow`, `makeApplication`, `connectEvents`, `openWindows`
 - the loop: `handleId` (one return ID) and `mainLoop`; `main` just calls these
   in order and cleans up
 

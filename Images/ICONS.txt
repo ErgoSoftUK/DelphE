@@ -1,4 +1,4 @@
-Toolbar images (actions.iff, components.iff)
+Toolbar images (actions.iff, palette1.iff, palette2.iff)
 ============================================
 
 Built by tools/make-icons.ps1 from icons of the "LED icons" pack by led24.de
