@@ -19,6 +19,8 @@ source.
   components, live preview of the form as real MUI objects.
 - **Components:** groups (vertical, horizontal), Button, Text, String, Check,
   Cycle, Radio, Slider, Gauge and List.
+- **Entries dialog:** a `...` button beside Title/items opens a small editor with
+  one entry per line, for Cycle, Radio and List components.
 - **Properties:** weight, fixed width/height, hint, disabled, group frame, and
   min/max/value for sliders and gauges.
 - **Events:** one per component kind (`OnClick`, `OnEnter`, `OnChange`,

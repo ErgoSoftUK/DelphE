@@ -143,7 +143,9 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   - the **component tree** (`Listtree.mcc`) with Delete / Up / Down, so the tree
     sits right beside the form selector;
   - a Balance bar, so you can trade height between the tree and the properties;
-  - a Properties page (name, title or entries, weight, fixed size, min/max/value,
+  - a Properties page (name, title or entries, with a `...` button that opens the
+    entries dialog: a small window with a text editor, one entry per line, that
+    turns the lines into the `One|Two|Three` the model stores; weight, fixed size, min/max/value,
     hint, disabled, frame) and an Events page (the handler, with New and Edit).
 
   The tree also takes **drag and drop**. It is a small subclass of

@@ -20,7 +20,7 @@ ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
-     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE
+     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
@@ -42,7 +42,8 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     redoTrees[40]: ARRAY OF LONG, redoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
-DEF inspPanel, inspBalance, inspShown, pages, pageTitles, liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
+DEF inspPanel, inspBalance, inspShown, pages, pageTitles, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
+    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
     inspPages, inspTitles, actionsDef, paletteDef, paletteDef2,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
@@ -159,7 +160,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems
   w := 0
   fx := 0
   fy := 0
@@ -170,6 +171,7 @@ PROC showProps(c: PTR TO component)
   isGroup := FALSE
   isSlider := FALSE
   isGauge := FALSE
+  isItems := FALSE
   flags := 0
   IF c
     flags := c.propFlags
@@ -183,6 +185,7 @@ PROC showProps(c: PTR TO component)
     IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
+    IF (c.kind = CK_CYCLE) OR (c.kind = CK_RADIO) OR (c.kind = CK_LIST) THEN isItems := TRUE
   ENDIF
 
   showNumber(strWeight, flags, PF_WEIGHT, w)
@@ -209,6 +212,7 @@ PROC showProps(c: PTR TO component)
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
   setEnabled(strValue, isSlider OR isGauge)
+  setEnabled(btnEntries, isItems)
 ENDPROC
 
 PROC setEnabled(gadget, enabled)
@@ -1837,7 +1841,11 @@ PROC makeInspectorPanel()
             Child, Label2('Name:'),
             Child, strName := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Title/items:'),
-            Child, strTitle := StringObject, StringFrame, MUIA_String_Contents, '', End,
+            Child, HGroup,
+              Child, strTitle := StringObject, StringFrame, MUIA_String_Contents, '', End,
+              -> for a Cycle, Radio or List: edit the entries one per line
+              Child, btnEntries := SimpleButton('...'),
+            End,
             Child, Label2('Weight:'),
             Child, strWeight := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Fixed width:'),
@@ -1947,8 +1955,117 @@ PROC makeEditorPanel()
 ENDPROC
 
 -> All the windows go into one application
+-> The entries dialog: a small window with a text editor, one entry per line, that
+-> edits a Cycle, Radio or List's entries without typing | by hand
+PROC makeEntriesWindow()
+  entriesSlider := ScrollbarObject,
+    MUIA_Group_Horiz, FALSE,
+  End
+  entriesEditor := TextEditorObject,
+    MUIA_TextEditor_ExportHook, MUIV_TextEditor_ExportHook_Plain,
+    MUIA_TextEditor_Slider, entriesSlider,
+  End
+  IF entriesEditor = NIL THEN Raise('Could not create the entries editor')
+  set(entriesEditor, MUIA_TextEditor_FixedFont, MUI_TRUE)
+
+  winEntries := WindowObject,
+    MUIA_Window_Title, 'Entries',
+    MUIA_Window_ID, "DENT",
+    MUIA_Window_LeftEdge, MUIV_Window_LeftEdge_Centered,
+    MUIA_Window_TopEdge, MUIV_Window_TopEdge_Centered,
+    MUIA_Window_Width, 260,
+    MUIA_Window_Height, 220,
+    WindowContents, VGroup,
+      Child, TextObject, MUIA_Text_Contents, 'One entry per line:', End,
+      Child, HGroup,
+        MUIA_Group_Spacing, 0,
+        Child, entriesEditor,
+        Child, entriesSlider,
+      End,
+      Child, HGroup,
+        Child, btnEntriesOk := SimpleButton('OK'),
+        Child, btnEntriesCancel := SimpleButton('Cancel'),
+      End,
+    End,
+  End
+ENDPROC
+
+-> "One|Two" -> "One" and "Two" on separate lines
+PROC itemsToLines(s)
+  DEF out: PTR TO CHAR, i, len
+  len := StrLen(s)
+  out := NewM(len + 2, MEMF_PUBLIC)
+  FOR i := 0 TO len - 1
+    IF s[i] = "|" THEN out[i] := 10 ELSE out[i] := s[i]
+  ENDFOR
+  out[len] := 0
+ENDPROC out
+
+-> The editor's lines as "One|Two": blank lines and surrounding spaces are dropped,
+-> and a | inside an entry becomes a /
+PROC linesToItems(text)
+  DEF out: PTR TO CHAR, i, len, ch, lineStart, s, e, k, o, c, trimming
+  len := StrLen(text)
+  out := NewM(len + 2, MEMF_PUBLIC)
+  o := 0
+  lineStart := 0
+  FOR i := 0 TO len
+    ch := 10
+    IF i < len THEN ch := text[i]
+    IF ch = 10
+      e := i
+      trimming := TRUE
+      WHILE trimming AND (e > lineStart)
+        IF text[e - 1] <= " " THEN e-- ELSE trimming := FALSE
+      ENDWHILE
+      s := lineStart
+      trimming := TRUE
+      WHILE trimming AND (s < e)
+        IF text[s] <= " " THEN s++ ELSE trimming := FALSE
+      ENDWHILE
+      IF e > s
+        IF o > 0
+          out[o] := "|"
+          o++
+        ENDIF
+        FOR k := s TO e - 1
+          c := text[k]
+          IF c = "|" THEN c := "/"
+          out[o] := c
+          o++
+        ENDFOR
+      ENDIF
+      lineStart := i + 1
+    ENDIF
+  ENDFOR
+  out[o] := 0
+ENDPROC copyStr(out)
+
+PROC openEntries()
+  DEF c: PTR TO component
+  c := selected
+  IF c = NIL THEN RETURN
+  IF (c.kind <> CK_CYCLE) AND (c.kind <> CK_RADIO) AND (c.kind <> CK_LIST) THEN RETURN
+  set(entriesEditor, MUIA_TextEditor_Contents, itemsToLines(titleOf(c)))
+  set(winEntries, MUIA_Window_Open, MUI_TRUE)
+  set(winEntries, MUIA_Window_Activate, MUI_TRUE)
+  set(winEntries, MUIA_Window_ActiveObject, entriesEditor)
+ENDPROC
+
+-> OK in the entries dialog: the lines become the component's title (its entries)
+PROC applyEntries()
+  DEF text, items
+  text := doMethodA(entriesEditor, [MUIM_TextEditor_ExportText])
+  IF text = NIL THEN RETURN
+  items := linesToItems(text)
+  FreeVec(text)
+  set(winEntries, MUIA_Window_Open, FALSE)
+  set(strTitle, MUIA_String_Contents, items)
+  onTitle()
+ENDPROC
+
 PROC makeApplication()
-  IF win = NIL THEN Raise('Failed to create the window')
+  IF (win = NIL) OR (winEntries = NIL) THEN Raise('Failed to create the window')
 
   app := ApplicationObject,
     MUIA_Application_Title      , 'DelphE Designer',
@@ -1956,6 +2073,7 @@ PROC makeApplication()
     MUIA_Application_Description, 'DelphE form designer',
     MUIA_Application_Base       , 'DELPHEDESIGNER',
     SubWindow, win,
+    SubWindow, winEntries,
   End
 
   IF app = NIL THEN Raise('Failed to create Application.')
@@ -1972,6 +2090,14 @@ PROC connectEvents()
     app, 2, MUIM_Application_ReturnID, ID_SIZE])
   doMethodA(sldH, [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SIZE])
+  doMethodA(btnEntries, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_ENTRIES])
+  doMethodA(btnEntriesOk, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_ENTRIESOK])
+  doMethodA(btnEntriesCancel, [MUIM_Notify, MUIA_Pressed, FALSE,
+    winEntries, 3, MUIM_Set, MUIA_Window_Open, FALSE])
+  doMethodA(winEntries, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
+    winEntries, 3, MUIM_Set, MUIA_Window_Open, FALSE])
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
@@ -2120,6 +2246,10 @@ PROC handleId(id)
         doMakeMain()
       CASE ID_SIZE
         resizePreview()
+      CASE ID_ENTRIES
+        openEntries()
+      CASE ID_ENTRIESOK
+        applyEntries()
     ENDSELECT
   ENDIF
 ENDPROC running
@@ -2171,6 +2301,7 @@ PROC main() HANDLE
   makeInspectorPanel()
   makeEditorPanel()
   makeMainWindow()
+  makeEntriesWindow()
   makeApplication()
   connectEvents()
   openWindows()
