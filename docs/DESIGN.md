@@ -159,9 +159,15 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   an attempt to do the drop ourselves with `MUIM_Listtree_TestPos` picked the
   wrong target, so both were dropped. Use Up / Down or drag onto a group.
 - **Form and Code tabs**, filling the rest. **Form** is the **live form**: the
-  real MUI objects, rebuilt after each change. MUI has no free positioning or
-  resizing to drag, so components are selected in the tree, not by clicking them
-  in the live form. **Code** is `TextEditor.mcc` showing the generated file, a
+  real MUI objects, rebuilt after each change, in a framed box whose width and
+  height are set by two sliders, as a percentage of the area (0% is the smallest
+  the form can be, 100% fills it): width along the top, height docked at the left.
+  The sliders show no number, only the knob. The box is placed with weights and
+  the empty space beside and below it takes the rest. A weight is fixed when an
+  object is made, so each slider move replaces the area and rebuilds the form in
+  it. MUI has no free
+  positioning to drag, so components are selected in the tree, not by clicking
+  them in the live form. **Code** is `TextEditor.mcc` showing the generated file, a
   read-only pane for compiler output, and Save Code, Reload, Compile and Run. Edit,
   a compile error and the View menu's Code tab item all switch to the Code tab.
 - A Balance bar sits between the inspector and the tabs, and the View menu can
@@ -271,6 +277,10 @@ These cost time, so they are written down.
 - `SimpleButton()` and `CheckMark()` take no extra tags, so buttons with
   properties are written out in full.
 - Bubble help works but is slow by default: lower the delay in MUI Settings.
+- Arithmetic such as `100 - p` inside a tag list (`[... MUIA_Weight, 100 - p ...]`
+  or the `Child, ... End` macros) is a syntax error: work it out into a variable
+  first.
+- A Toolbar never wraps, and its width sets the minimum width of whatever holds it.
 
 ## Roadmap
 

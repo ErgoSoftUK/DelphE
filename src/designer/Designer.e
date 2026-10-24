@@ -20,7 +20,7 @@ ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_SAVECODE, ID_RELOADCODE, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
-     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN
+     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
@@ -42,7 +42,7 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     redoTrees[40]: ARRAY OF LONG, redoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
-DEF inspPanel, inspBalance, inspShown, pages, pageTitles, liveHolder, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
+DEF inspPanel, inspBalance, inspShown, pages, pageTitles, liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, paletteBar, paletteBar2,
     inspPages, inspTitles, actionsDef, paletteDef, paletteDef2,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
@@ -1477,11 +1477,67 @@ PROC refreshLive()
   IF form.firstChild
     obj := buildObject(form.firstChild)
     IF obj
+      -> the placeholder only stops an empty box; beside the form it would take
+      -> the spare space and push the form to the bottom
+      IF livePlaceholder
+        doMethodA(liveHolder, [OM_REMMEMBER, livePlaceholder])
+        Mui_DisposeObject(livePlaceholder)
+        livePlaceholder := NIL
+      ENDIF
       doMethodA(liveHolder, [OM_ADDMEMBER, obj])
       liveObj := obj
     ENDIF
   ENDIF
+  IF (liveObj = NIL) AND (livePlaceholder = NIL)
+    livePlaceholder := RectangleObject, MUIA_Weight, 1, End
+    IF livePlaceholder THEN doMethodA(liveHolder, [OM_ADDMEMBER, livePlaceholder])
+  ENDIF
   doMethodA(liveHolder, [MUIM_Group_ExitChange])
+ENDPROC
+
+-> The form's framed box inside empty space: p and q are its width and height as a
+-> percentage of the area. A weight is fixed when an object is made, so a size
+-> change builds a new one (see resizePreview).
+PROC makePreviewArea(p, q)
+  DEF box, restW, restH
+  restW := 100 - p
+  restH := 100 - q
+  box := VGroup,
+    Child, HGroup,
+      MUIA_Weight, q,
+      Child, liveHolder := VGroup,
+        GroupFrame,
+        MUIA_Weight, p,
+        Child, livePlaceholder := RectangleObject, MUIA_Weight, 1, End,
+      End,
+      Child, RectangleObject, MUIA_Weight, restW, End,
+    End,
+    Child, RectangleObject, MUIA_Weight, restH, End,
+  End
+ENDPROC box
+
+-> Replaces the preview area with one of the size the sliders say, and rebuilds the
+-> form in it
+PROC resizePreview()
+  DEF p, q, fresh, old, oldPlaceholder
+  get(sldW, MUIA_Numeric_Value, {p})
+  get(sldH, MUIA_Numeric_Value, {q})
+  old := liveHolder
+  oldPlaceholder := livePlaceholder
+  fresh := makePreviewArea(p, q)
+  IF fresh = NIL
+    liveHolder := old
+    livePlaceholder := oldPlaceholder
+    RETURN
+  ENDIF
+  doMethodA(previewHost, [MUIM_Group_InitChange])
+  doMethodA(previewHost, [OM_REMMEMBER, previewArea])
+  Mui_DisposeObject(previewArea)
+  liveObj := NIL
+  doMethodA(previewHost, [OM_ADDMEMBER, fresh])
+  doMethodA(previewHost, [MUIM_Group_ExitChange])
+  previewArea := fresh
+  refreshLive()
 ENDPROC
 
 /*** menus and toolbars ***/
@@ -1840,8 +1896,31 @@ PROC makeEditorPanel()
   pages := RegisterGroup(pageTitles),
     MUIA_Weight, 70,
     MUIA_Register_Frame, MUI_TRUE,
-    Child, liveHolder := VGroup,
-      Child, RectangleObject, MUIA_Weight, 1, End,
+    -> The form's size is set with two sliders, as a share of the area (0% is the
+    -> smallest the form can be, 100% fills the area): width along the top, height
+    -> docked at the left. A two-column grid keeps the width slider starting where
+    -> the height slider ends; the empty top-left cell is just a gap. The form sits
+    -> in a framed box of that size.
+    Child, ColGroup(2),
+      Child, RectangleObject, MUIA_Weight, 0, End,
+      Child, sldW := SliderObject,
+        MUIA_Numeric_Min, 0,
+        MUIA_Numeric_Max, 100,
+        MUIA_Numeric_Value, 70,
+        MUIA_Numeric_Format, '',
+        MUIA_ShortHelp, 'Width of the form, as a share of the area',
+      End,
+      Child, sldH := SliderObject,
+        MUIA_Slider_Horiz, FALSE,
+        MUIA_Numeric_Min, 0,
+        MUIA_Numeric_Max, 100,
+        MUIA_Numeric_Value, 70,
+        MUIA_Numeric_Format, '',
+        MUIA_ShortHelp, 'Height of the form, as a share of the area',
+      End,
+      Child, previewHost := VGroup,
+        Child, previewArea := makePreviewArea(70, 70),
+      End,
     End,
     Child, VGroup,
       Child, HGroup,
@@ -1889,6 +1968,10 @@ PROC connectEvents()
   -> closing the window quits
   doMethodA(win, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,
     app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])
+  doMethodA(sldW, [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_SIZE])
+  doMethodA(sldH, [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_SIZE])
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
@@ -2035,6 +2118,8 @@ PROC handleId(id)
         doRemoveForm()
       CASE ID_MAKEMAIN
         doMakeMain()
+      CASE ID_SIZE
+        resizePreview()
     ENDSELECT
   ENDIF
 ENDPROC running
