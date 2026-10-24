@@ -68,4 +68,3 @@ ENDPROC
 PROC btn2Click() OF tMainForm
   WriteF('Hello world!!')
 ENDPROC
-®ýö@AX

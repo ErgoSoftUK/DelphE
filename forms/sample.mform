@@ -6,7 +6,7 @@ Window MainForm "Hello DelphE"
       Button btnOk "Test1234" @OnClick=btnOkClick :hint="Test"
       Text lbl1 "Label"
       Text lbl2 "Label"
-      Button btn1 "Button"
+      Button btn1 "Button" @OnClick=btn2Click
       Button btnCancel "Cancel" :weight=0 :disabled
     Pages pgs1 "Page 1|Page 2"
       VGroup page1
