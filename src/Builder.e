@@ -74,7 +74,11 @@ PROC addExtras(tags, c: PTR TO component)
   IF flags AND PF_FIXW THEN tags := ListAdd(tags, [MUIA_FixWidth, c.fixW])
   IF flags AND PF_FIXH THEN tags := ListAdd(tags, [MUIA_FixHeight, c.fixH])
   IF flags AND PF_DISABLED THEN tags := ListAdd(tags, [MUIA_Disabled, MUI_TRUE])
-  IF flags AND PF_FONT THEN tags := ListAdd(tags, [MUIA_Font, fontValue(c.fontIdx)])
+  IF isContainer(c.kind)
+    IF flags AND PF_FONT THEN tags := ListAdd(tags, [MUIA_Font, fontValue(c.fontIdx)])
+  ELSEIF effectiveFont(c) > 0
+    tags := ListAdd(tags, [MUIA_Font, fontValue(effectiveFont(c))])
+  ENDIF
   IF flags AND PF_HINT THEN tags := ListAdd(tags, [MUIA_ShortHelp, c.hint])
   IF isContainer(c.kind) AND (c.kind <> CK_WINDOW)
     IF flags AND PF_FRAME
@@ -150,7 +154,7 @@ PROC buildGroup(c: PTR TO component)
 ENDPROC obj
 
 PROC buildObject(c: PTR TO component)
-  DEF kind, t, tags, obj, class
+  DEF kind, t, tags, obj, class, bf
   kind := c.kind
   t := titleOf(c)
 
@@ -159,12 +163,14 @@ PROC buildObject(c: PTR TO component)
   tags := List(TAGROOM)
   tags := ListCopy(tags, [TAG_IGNORE, 0])
   class := NIL
+  bf := MUIV_Font_Button
+  IF effectiveFont(c) > 0 THEN bf := fontValue(effectiveFont(c))
 
   SELECT kind
     CASE CK_BUTTON
       class := MUIC_Text
       tags := ListAdd(tags,
-        [MUIA_Frame, MUIV_Frame_Button, MUIA_Font, MUIV_Font_Button,
+        [MUIA_Frame, MUIV_Frame_Button, MUIA_Font, bf,
          MUIA_Text_Contents, t, MUIA_Text_PreParse, '\ec',
          MUIA_InputMode, MUIV_InputMode_RelVerify,
          MUIA_Background, MUII_ButtonBack])
@@ -186,7 +192,7 @@ PROC buildObject(c: PTR TO component)
          MUIA_ShowSelState, FALSE])
     CASE CK_CYCLE
       class := MUIC_Cycle
-      tags := ListAdd(tags, [MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, splitItems(t)])
+      tags := ListAdd(tags, [MUIA_Font, bf, MUIA_Cycle_Entries, splitItems(t)])
     CASE CK_RADIO
       class := MUIC_Radio
       tags := ListAdd(tags, [MUIA_Radio_Entries, splitItems(t)])

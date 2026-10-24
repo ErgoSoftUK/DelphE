@@ -97,9 +97,9 @@ PROC emitLeafExtras(fh, c: PTR TO component)
   IF flags AND PF_FIXW THEN putPair(fh, ', MUIA_FixWidth, ', c.fixW)
   IF flags AND PF_FIXH THEN putPair(fh, ', MUIA_FixHeight, ', c.fixH)
   IF flags AND PF_DISABLED THEN put(fh, ', MUIA_Disabled, MUI_TRUE')
-  IF flags AND PF_FONT
+  IF effectiveFont(c) > 0
     put(fh, ', MUIA_Font, ')
-    put(fh, fontConst(c.fontIdx))
+    put(fh, fontConst(effectiveFont(c)))
   ENDIF
   IF flags AND PF_HINT
     put(fh, ', MUIA_ShortHelp, ')
@@ -207,16 +207,17 @@ PROC leafExpr(fh, c: PTR TO component)
   kind := c.kind
   SELECT kind
     CASE CK_BUTTON
-      IF c.propFlags = 0
+      IF (c.propFlags = 0) AND (effectiveFont(c) = 0)
         put(fh, 'SimpleButton(')
         quoted(fh, c.title)
         put(fh, ')')
       ELSE
         -> SimpleButton() takes no tags, so spell the button out
-        put(fh, 'TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, ')
+        put(fh, 'TextObject, ButtonFrame, MUIA_Text_Contents, ')
         quoted(fh, c.title)
         put(fh, ', MUIA_Text_PreParse, \a\\ec\a, MUIA_InputMode, MUIV_InputMode_RelVerify, ')
         put(fh, 'MUIA_Background, MUII_ButtonBack')
+        IF effectiveFont(c) = 0 THEN put(fh, ', MUIA_Font, MUIV_Font_Button')
         emitLeafExtras(fh, c)
         put(fh, ', End')
       ENDIF
@@ -241,8 +242,9 @@ PROC leafExpr(fh, c: PTR TO component)
         put(fh, ', End')
       ENDIF
     CASE CK_CYCLE
-      put(fh, 'CycleObject, MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, ')
+      put(fh, 'CycleObject, MUIA_Cycle_Entries, ')
       putItems(fh, c.title)
+      IF effectiveFont(c) = 0 THEN put(fh, ', MUIA_Font, MUIV_Font_Button')
       emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_RADIO

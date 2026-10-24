@@ -277,3 +277,13 @@ PROC fontIndex(name)
     ENDIF
   ENDFOR
 ENDPROC 0
+
+-> The font index a component ends up with: its own, else the nearest ancestor's, else 0.
+-> MUI only passes a group's font on to children that have no font of their own, and
+-> buttons, cycles and the like do, so the designer sets it on each widget explicitly.
+PROC effectiveFont(c: PTR TO component)
+  WHILE c
+    IF c.propFlags AND PF_FONT THEN RETURN c.fontIdx
+    c := c.parent
+  ENDWHILE
+ENDPROC 0
