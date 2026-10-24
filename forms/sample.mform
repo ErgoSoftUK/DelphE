@@ -8,9 +8,8 @@ Window MainForm "Hello DelphE"
       Text lbl2 "Label"
       Button btn1 "Button"
       Button btnCancel "Cancel" :weight=0 :disabled
-    Cycle cyc1 "One|Two|Three"
-    String edt1 ""
-    Slider sld1 "" :value=25
-    Radio rad1 "One|Two|Three"
-    Gauge gau1 "test" :value=50
-    List lst1 "One|Two|Three"
+    Pages pgs1 "Page 1|Page 2"
+      VGroup page1
+        List lst1 "One|Two|Three|Four|Five|Six"
+      VGroup page2
+        Gauge gau1 ""

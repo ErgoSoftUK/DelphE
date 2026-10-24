@@ -14,57 +14,77 @@ MODULE 'muimaster', 'libraries/mui', 'utility/tagitem',
 
 OBJECT tMainForm
   handle
+  idBase
   lblName
   edtName
   btnOk
+  lbl1
+  lbl2
+  btn1
   btnCancel
-  cyc1
-  rad1
-  sld1
-  gau1
   lst1
+  gau1
 ENDOBJECT
 
 PROC create() OF tMainForm
-  self.lblName := TextObject, TextFrame, MUIA_Text_Contents, 'Name:', End
-  self.edtName := StringObject, StringFrame, MUIA_String_Contents, '', End
-  self.btnOk := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Test1234', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_ShortHelp, 'Test', End
-  self.btnCancel := TextObject, ButtonFrame, MUIA_Font, MUIV_Font_Button, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Weight, 0, MUIA_Disabled, MUI_TRUE, End
-  self.cyc1 := CycleObject, MUIA_Font, MUIV_Font_Button, MUIA_Cycle_Entries, ['One', 'Two', 'Three', NIL], End
-  self.rad1 := RadioObject, MUIA_Radio_Entries, ['One', 'Two', 'Three', NIL], End
-  self.sld1 := SliderObject, MUIA_Numeric_Min, 0, MUIA_Numeric_Max, 100, MUIA_Numeric_Value, 0, End
-  self.gau1 := GaugeObject, GaugeFrame, MUIA_Gauge_Horiz, MUI_TRUE, MUIA_Gauge_Max, 100, MUIA_Gauge_Current, 0, End
-  self.lst1 := ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, ['One', 'Two', 'Three', NIL], End, End
+  self.lblName := TextObject, TextFrame, MUIA_Text_Contents, 'Name:', MUIA_Font, MUIV_Font_Big, End
+  self.edtName := StringObject, StringFrame, MUIA_String_Contents, '', MUIA_Font, MUIV_Font_Big, End
+  self.btnOk := TextObject, ButtonFrame, MUIA_Text_Contents, 'Test1234', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Font, MUIV_Font_Big, MUIA_ShortHelp, 'Test', End
+  self.lbl1 := TextObject, TextFrame, MUIA_Text_Contents, 'Label', MUIA_Font, MUIV_Font_Big, End
+  self.lbl2 := TextObject, TextFrame, MUIA_Text_Contents, 'Label', MUIA_Font, MUIV_Font_Big, End
+  self.btn1 := TextObject, ButtonFrame, MUIA_Text_Contents, 'Button', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Font, MUIV_Font_Big, End
+  self.btnCancel := TextObject, ButtonFrame, MUIA_Text_Contents, 'Cancel', MUIA_Text_PreParse, '\ec', MUIA_InputMode, MUIV_InputMode_RelVerify, MUIA_Background, MUII_ButtonBack, MUIA_Weight, 0, MUIA_Disabled, MUI_TRUE, MUIA_Font, MUIV_Font_Big, End
+  self.lst1 := ListviewObject, MUIA_Listview_List, ListObject, InputListFrame, MUIA_List_SourceArray, ['One', 'Two', 'Three', 'Four', 'Five', 'Six', NIL], End, MUIA_Font, MUIV_Font_Big, End
+  self.gau1 := GaugeObject, GaugeFrame, MUIA_Gauge_Horiz, MUI_TRUE, MUIA_Gauge_Max, 100, MUIA_Gauge_Current, 0, MUIA_Font, MUIV_Font_Big, End
   self.handle := WindowObject,
     MUIA_Window_Title, 'Hello DelphE',
     MUIA_Window_ID, "MAIN",
     WindowContents,
       VGroup,
+        MUIA_Font, MUIV_Font_Big,
         Child, self.lblName,
         Child, self.edtName,
         Child, HGroup,
           Child, self.btnOk,
+          Child, self.lbl1,
+          Child, self.lbl2,
+          Child, self.btn1,
           Child, self.btnCancel,
         End,
-        Child, self.cyc1,
-        Child, self.rad1,
-        Child, self.sld1,
-        Child, self.gau1,
-        Child, self.lst1,
+        Child, RegisterGroup(['Page 1', 'Page 2', NIL]),
+          MUIA_Register_Frame, MUI_TRUE,
+          Child, VGroup,
+            Child, self.lst1,
+          End,
+          Child, VGroup,
+            Child, self.gau1,
+          End,
+        End,
       End,
   End
 ENDPROC
 
 PROC connect(app) OF tMainForm
-  doMethodA(self.btnOk, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, 1])
+  doMethodA(self.btnOk, [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, self.idBase + 1])
 ENDPROC
 
 PROC handleEvent(id) OF tMainForm
-  SELECT id
+  DEF ev
+  ev := id - self.idBase
+  SELECT ev
     CASE 1
       self.btnOkClick()
   ENDSELECT
 ENDPROC
+
+PROC show() OF tMainForm
+  set(self.handle, MUIA_Window_Open, MUI_TRUE)
+ENDPROC
+
+PROC hide() OF tMainForm
+  set(self.handle, MUIA_Window_Open, FALSE)
+ENDPROC
+
 ->>> DELPHE END
 
 /*** your code ***/
