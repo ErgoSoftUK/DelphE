@@ -230,7 +230,7 @@ PROC buildUse(c: PTR TO component)
 ENDPROC obj
 
 PROC buildObject(c: PTR TO component)
-  DEF kind, t, tags, obj, class, bf
+  DEF kind, t, tags, obj, class, bf, gh
   kind := c.kind
   t := titleOf(c)
 
@@ -280,10 +280,15 @@ PROC buildObject(c: PTR TO component)
         [MUIA_Numeric_Min, numberOr(c, PF_MIN, c.minV, 0),
          MUIA_Numeric_Max, numberOr(c, PF_MAX, c.maxV, 100),
          MUIA_Numeric_Value, numberOr(c, PF_VALUE, c.value, 0)])
+      IF c.propFlags AND PF_VERT THEN tags := ListAdd(tags, [MUIA_Group_Horiz, FALSE])
+    CASE CK_BALANCE
+      class := MUIC_Balance
     CASE CK_GAUGE
       class := MUIC_Gauge
+      gh := MUI_TRUE
+      IF c.propFlags AND PF_VERT THEN gh := FALSE
       tags := ListAdd(tags,
-        [MUIA_Frame, MUIV_Frame_Gauge, MUIA_Gauge_Horiz, MUI_TRUE,
+        [MUIA_Frame, MUIV_Frame_Gauge, MUIA_Gauge_Horiz, gh,
          MUIA_Gauge_Max, numberOr(c, PF_MAX, c.maxV, 100),
          MUIA_Gauge_Current, numberOr(c, PF_VALUE, c.value, 0)])
     CASE CK_SPACER

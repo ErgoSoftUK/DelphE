@@ -19,15 +19,20 @@ Window DelphEMain "DelphE Designer"
           Button btnDelete "Delete" @OnClick=btnDeleteClick
           Button btnUp "Up" @OnClick=btnUpClick
           Button btnDown "Down" @OnClick=btnDownClick
+        Balance balInspector
         Pages inspPages "Properties|Events" :weight=60
           VGroup propsPage
             Use propsPanel :arg="properties.mframe"
           VGroup eventsPage
             Use eventsPanel :arg="events.mframe"
+      Balance balMain
       Pages editorPages "Form|Code" :weight=70
         VGroup formPage
-          Text lblSizeNote "[needs vertical sliders and a custom preview host]"
-          Slider sldW :min=0 :max=100 :value=70 @OnChange=sldWChange :weight=0
+          ColGroup sizeArea :value=2
+            Slider sldH :min=0 :max=100 :value=70 :vert @OnChange=sldHChange :weight=0
+            Text lblPreviewHost "[needs a custom preview host]"
+            Spacer corner :weight=0
+            Slider sldW :min=0 :max=100 :value=70 @OnChange=sldWChange :weight=0
         VGroup codePage
           Text txtCodePath ""
           Memo memoCode "" :weight=80

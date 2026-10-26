@@ -18,9 +18,10 @@ source.
 - **Form designer:** component tree, property inspector, add / delete / move
   components, live preview of the form as real MUI objects.
 - **Components:** groups (vertical, horizontal), Button, Text, String, Check,
-  Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, ColGroup (columns), Scroll
+  Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, Balance (a draggable bar between neighbours), ColGroup (columns), Scroll
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
+- **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
 - **Menus:** a MenuStrip (one per window, in the Utilities branch) holds Menus, which hold
   MenuItems; an item can hold items (a submenu). The Option field of an item is its shortcut key,
   "Save/checkable" makes it a checkmark item, a title of `-` is a separator bar, and an item with a

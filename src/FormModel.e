@@ -12,11 +12,11 @@ ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
      CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES,
      CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO,
      CK_UTILS, CK_FILEDLG, CK_MSGDLG, CK_FRAME, CK_USE,
-     CK_MENUSTRIP, CK_MENU, CK_MENUITEM
+     CK_MENUSTRIP, CK_MENU, CK_MENUITEM, CK_BALANCE
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
-      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512, PF_ARG = 1024, PF_SAVE = 2048
+      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512, PF_ARG = 1024, PF_SAVE = 2048, PF_VERT = 4096
 
 OBJECT component
   kind
@@ -60,12 +60,12 @@ PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
                                   'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo',
                                   'Utilities', 'FileDialog', 'MessageDialog', 'Frame', 'Use',
-                                  'MenuStrip', 'Menu', 'MenuItem'], kind)
+                                  'MenuStrip', 'Menu', 'MenuItem', 'Balance'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_MENUITEM
+  FOR k := CK_WINDOW TO CK_BALANCE
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF

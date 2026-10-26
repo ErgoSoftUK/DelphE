@@ -10,8 +10,8 @@ hand-written windows in `src/designer/Designer.e`.
 | Menu strip | done | `main.mform` now has the Project, Edit, Build and View menus, as MenuStrip, Menu and MenuItem components |
 | Toolbar.mcc | action toolbar, the four palette tabs | needs an image-strip property and a button list |
 | Listtree.mcc | component tree | plus drag and drop, which is a custom class |
-| Balance bar | between inspector and editor, and inside the inspector | easy: a MUI built-in |
-| Vertical slider | preview height slider | a slider orientation property |
+| Balance bar | done | `Balance` component; `main.mform` has both bars |
+| Vertical slider | done | the `:vert` property of Slider and Gauge; `main.mform` has the height slider |
 | Window properties | all forms | window ID, size, centred position, open at start |
 | Label component | `Text lblX` rows | a frameless, right-aligned label; Label2() and an alignment property |
 | Text alignment | `txtEvent` | `\er` pre-parse, `MUIA_FixWidthTxt` |

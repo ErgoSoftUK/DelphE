@@ -54,11 +54,12 @@ source keeps the compiled program independent of the IDE.
 | Check   | (none)                      | `OnChange`      |                                |
 | Cycle   | entries, separated by `\|`  | `OnChange`      |                                |
 | Radio   | entries, separated by `\|`  | `OnChange`      |                                |
-| Slider  | (none)                      | `OnChange`      | min / max / value              |
-| Gauge   | (none)                      |                 | max / value                    |
+| Slider  | (none)                      | `OnChange`      | min / max / value; `:vert` makes it vertical              |
+| Gauge   | (none)                      |                 | max / value; `:vert` makes it vertical                    |
 | List    | entries, separated by `\|`  | `OnDoubleClick` | static entries                 |
 | Pages   | tab titles, separated by `\|` |               | container: each child is a page |
 | Spacer  | (none)                      |                 | empty space; give it a weight or size |
+| Balance | (none)                      |                 | a bar you drag to resize its two neighbours; goes between them in a group |
 | ColGroup | (none)                     |                 | container; Value = number of columns |
 | Scroll  | (none)                      |                 | container: its children scroll in a virtual group |
 | Memo    | initial text                |                 | TextEditor.mcc with its scrollbar; needs that class |

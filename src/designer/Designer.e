@@ -53,7 +53,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     editor, slider, txtCodePath,
     logEditor, logSlider,
-    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, chkVert, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
@@ -219,6 +219,7 @@ PROC showProps(c: PTR TO component)
   showFlag(chkDisabled, flags, PF_DISABLED)
   showFlag(chkFrame, flags, PF_FRAME)
   showFlag(chkSave, flags, PF_SAVE)
+  showFlag(chkVert, flags, PF_VERT)
   set(strArg, MUIA_String_Contents, ar)
   set(cycFont, MUIA_Cycle_Active, fi)
 
@@ -231,6 +232,7 @@ PROC showProps(c: PTR TO component)
   setEnabled(chkFrame, isGroup)
   setEnabled(strArg, isDlg OR isUse OR isItem)
   setEnabled(chkSave, isFile OR isItem)
+  setEnabled(chkVert, isSlider OR isGauge)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
@@ -344,6 +346,10 @@ PROC commitProps()
   IF (c.kind = CK_FILEDLG) OR (c.kind = CK_MENUITEM)
     get(chkSave, MUIA_Selected, {sel})
     IF sel THEN nf := nf OR PF_SAVE
+  ENDIF
+  IF (c.kind = CK_SLIDER) OR (c.kind = CK_GAUGE)
+    get(chkVert, MUIA_Selected, {sel})
+    IF sel THEN nf := nf OR PF_VERT
   ENDIF
 
   IF nf = c.propFlags
@@ -1443,11 +1449,11 @@ PROC doAdd(idx)
     nm := uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
                                'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
                                'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg',
-                               'frm', 'use', 'mstrip', 'mnu', 'mni'], idx))
+                               'frm', 'use', 'mstrip', 'mnu', 'mni', 'bal'], idx))
     ttl := ListItem([NIL, NIL, 'Button', 'Label', '', '',
                      'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
                      'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?',
-                     NIL, NIL, NIL, 'Menu', 'Item'], idx)
+                     NIL, NIL, NIL, 'Menu', 'Item', NIL], idx)
   ENDIF
   c := newComponent(kind, nm, ttl)
   pushUndo()
@@ -2063,7 +2069,7 @@ PROC makeToolbars()
   -> toolbar is wide: a Toolbar never wraps, and a long row would fix the
   -> inspector's width. The kinds of each tab, in button order (a button's ID is
   -> ID_PALETTE + its kind - 1):
-  palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER, CK_USE]
+  palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER, CK_BALANCE, CK_USE]
   palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
   palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
   palKinds4 := [CK_FILEDLG, CK_MSGDLG, CK_MENUSTRIP, CK_MENU, CK_MENUITEM]
@@ -2075,6 +2081,7 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Add a scrolling group', NIL),
     Toolbar_HintButton(0, 'Add pages (tabs)', NIL),
     Toolbar_HintButton(0, 'Add a spacer (empty space that stretches)', NIL),
+    Toolbar_HintButton(0, 'Add a balance bar (lets you drag the border between its neighbours)', NIL),
     Toolbar_HintButton(0, 'Use a frame (a reusable group from a .mframe file)', NIL),
     Toolbar_End])
   layoutBar := ToolbarObject,
@@ -2251,6 +2258,11 @@ PROC makeInspectorPanel()
             Child, Label2('Save/checkable:'),
             Child, HGroup,
               Child, chkSave := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
+            Child, Label2('Vertical:'),
+            Child, HGroup,
+              Child, chkVert := CheckMark(FALSE),
               Child, HSpace(0),
             End,
           End,
@@ -2506,6 +2518,8 @@ PROC connectEvents()
   doMethodA(chkFrame, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(chkSave, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(chkVert, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(strArg, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
