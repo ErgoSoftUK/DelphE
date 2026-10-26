@@ -160,6 +160,9 @@ ENDPROC
 PROC beginMark() IS '->>> DELPHE BEGIN'
 -> the line in the user's file where the generated file is inserted at compile time
 PROC userMark() IS '->>> DELPHE GENERATED CODE'
+-> the line above the user's global variables, which end at the generated code
+PROC globalsMark() IS '->>> DELPHE GLOBALS'
+PROC globalsMarkLine() IS '->>> DELPHE GLOBALS (your global variables, constants and object types: they must come before the generated code)'
 PROC userMarkLine() IS '->>> DELPHE GENERATED CODE (the .gen.e file is inserted here when you compile: do not edit this line)'
 PROC endMark() IS '->>> DELPHE END'
 
@@ -1375,8 +1378,8 @@ PROC genProjectHeader(fh, projName)
   put(fh, 'OPT PREPROCESS\nOPT LARGE\n\n')
   put(fh, 'MODULE \amuimaster\a, \alibraries/mui\a, \autility/tagitem\a,\n')
   put(fh, '       \aamigalib/boopsi\a\n\n')
-  put(fh, '-> Your global variables (DEF), constants and object types go here, above the\n')
-  put(fh, '-> generated code: E wants every global DEF before the first PROC.\n\n')
+  put(fh, globalsMarkLine())
+  put(fh, '\n\n')
   put(fh, userMarkLine())
   put(fh, '\n')
 ENDPROC

@@ -13,7 +13,7 @@ OPT LARGE
 
 MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
-       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project', '*/Highlight',
+       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project', '*/Highlight', '*/UserFile',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
@@ -51,7 +51,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
-    editor, slider, txtCodePath,
+    editor, slider, edGlobals, slGlobals, edModules, slModules, codePages, secGlobStart, secCodeStart, secHas, txtCodePath,
     logEditor, logSlider,
     strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, lblArg, lblValue, chkSave, chkVert, chkCenter, chkOpen, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
@@ -595,50 +595,126 @@ ENDPROC s
 
 /*** code editor ***/
 
--> Loads the generated file into the editor (or clears it if there is none)
+-> Puts text (zero-terminated, or NIL for none) into an editor, with syntax colours
+PROC setEditorText(ed, text, len)
+  DEF styled
+  IF text = NIL
+    set(ed, MUIA_TextEditor_Contents, '')
+    RETURN
+  ENDIF
+  styled := highlightText(text, len)
+  IF styled
+    set(ed, MUIA_TextEditor_Contents, styled)
+    FreeVec(styled)
+  ELSE
+    set(ed, MUIA_TextEditor_Contents, text)
+  ENDIF
+ENDPROC
+
+-> Loads the program file into the three editors (or clears them if there is none)
 PROC loadCode()
-  DEF path, buf, len, styled
+  DEF path, buf, len, s: PTR TO sections
   path := outputPath()
   buf, len := readAll(path)
   IF buf = NIL
     set(editor, MUIA_TextEditor_Contents, '')
+    set(edGlobals, MUIA_TextEditor_Contents, '')
+    set(edModules, MUIA_TextEditor_Contents, '')
+    secHas := FALSE
+    secGlobStart := 0
+    secCodeStart := 0
     set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Build or Build > Generate code creates it')
   ELSE
-    -> the editor gets the source with syntax colours; saveCode takes them out again
-    styled := highlightText(buf, len)
-    IF styled
-      set(editor, MUIA_TextEditor_Contents, styled)
-      FreeVec(styled)
-    ELSE
-      set(editor, MUIA_TextEditor_Contents, buf)
-    ENDIF
+    s := splitSections(buf, len)
+    -> the editors get the source with syntax colours; saveCode takes them out again
+    setEditorText(editor, s.codeText, s.codeLen)
+    setEditorText(edGlobals, s.globText, s.globLen)
+    setEditorText(edModules, s.modText, s.modLen)
+    secHas := s.hasMarker
+    secGlobStart := s.globStart
+    secCodeStart := s.codeStart
+    freeSections(s)
     -> path is not freed: the text gadget may keep the pointer
     set(txtCodePath, MUIA_Text_Contents, path)
   ENDIF
   set(editor, MUIA_TextEditor_HasChanged, FALSE)
+  set(edGlobals, MUIA_TextEditor_HasChanged, FALSE)
+  set(edModules, MUIA_TextEditor_HasChanged, FALSE)
 ENDPROC
 
--> Writes the editor's text back to the file if it was changed
+-> An editor's text without the syntax colours, as memory to free, or NIL
+PROC exportEditor(ed)
+  DEF text
+  text := doMethodA(ed, [MUIM_TextEditor_ExportText])
+  IF text THEN stripStyles(text)
+ENDPROC text
+
+-> Writes the editors' text back to the file if any of them was changed
 PROC saveCode()
-  DEF changed, text, fh, path
-  get(editor, MUIA_TextEditor_HasChanged, {changed})
-  IF changed = FALSE THEN RETURN
+  DEF c1, c2, c3, mod, glob, code, out, olen, fh, path
+  get(editor, MUIA_TextEditor_HasChanged, {c1})
+  get(edGlobals, MUIA_TextEditor_HasChanged, {c2})
+  get(edModules, MUIA_TextEditor_HasChanged, {c3})
+  IF (c1 = FALSE) AND (c2 = FALSE) AND (c3 = FALSE) THEN RETURN
   path := outputPath()
-  -> with no file there is nothing the editor could belong to
+  -> with no file there is nothing the editors could belong to
   IF canOpen(path) = FALSE THEN RETURN
-  text := doMethodA(editor, [MUIM_TextEditor_ExportText])
-  IF text = NIL THEN RETURN
-  stripStyles(text)
-  fh := Open(path, MODE_NEWFILE)
-  IF fh
-    Write(fh, text, StrLen(text))
-    Close(fh)
-    set(editor, MUIA_TextEditor_HasChanged, FALSE)
-  ELSE
-    status('Could not write the code file')
+  code := exportEditor(editor)
+  glob := exportEditor(edGlobals)
+  mod := exportEditor(edModules)
+  IF (code = NIL) OR (glob = NIL) OR (mod = NIL)
+    IF code THEN FreeVec(code)
+    IF glob THEN FreeVec(glob)
+    IF mod THEN FreeVec(mod)
+    RETURN
   ENDIF
-  FreeVec(text)
+  IF secHas
+    out, olen := joinSections(mod, glob, code)
+  ELSE
+    -> not a DelphE file: all of it is in the code editor
+    out := code
+    olen := StrLen(code)
+    code := NIL
+  ENDIF
+  IF out
+    fh := Open(path, MODE_NEWFILE)
+    IF fh
+      Write(fh, out, olen)
+      Close(fh)
+      set(editor, MUIA_TextEditor_HasChanged, FALSE)
+      set(edGlobals, MUIA_TextEditor_HasChanged, FALSE)
+      set(edModules, MUIA_TextEditor_HasChanged, FALSE)
+    ELSE
+      status('Could not write the code file')
+    ENDIF
+    FreeVec(out)
+  ENDIF
+  IF code THEN FreeVec(code)
+  FreeVec(glob)
+  FreeVec(mod)
 ENDPROC
+
+-> Shows a line of the program file (counting from 0) in whichever editor holds it
+PROC showFileLine(line)
+  showCode()
+  IF (secHas = FALSE) OR (line >= secCodeStart)
+    set(codePages, MUIA_Group_ActivePage, 0)
+    set(editor, MUIA_TextEditor_CursorY, line - secCodeStart)
+  ELSEIF line >= secGlobStart
+    set(codePages, MUIA_Group_ActivePage, 1)
+    set(edGlobals, MUIA_TextEditor_CursorY, line - secGlobStart)
+  ELSE
+    set(codePages, MUIA_Group_ActivePage, 2)
+    set(edModules, MUIA_TextEditor_CursorY, line)
+  ENDIF
+ENDPROC
+
+-> The editor that has the focus (the code editor if none of the three)
+PROC activeEditor()
+  DEF o
+  get(win, MUIA_Window_ActiveObject, {o})
+  IF (o = edGlobals) OR (o = edModules) THEN RETURN o
+ENDPROC editor
 
 -> The text for the log pane: a warning about the orphaned handlers, then more
 PROC logWithOrphans(more)
@@ -719,8 +795,7 @@ PROC gotoHandler(c: PTR TO component)
   FOR i := 0 TO p - 1
     IF buf[i] = 10 THEN line++
   ENDFOR
-  showCode()
-  set(editor, MUIA_TextEditor_CursorY, line + 1)
+  showFileLine(line + 1)
 ENDPROC
 
 /*** files ***/
@@ -1284,14 +1359,12 @@ PROC compileCode()
     IF line >= (first + glines)
       -> the compiler saw the inserted generated code: take it out of the count
       line := line - glines
-      showCode()
-      set(editor, MUIA_TextEditor_CursorY, line - 1)
+      showFileLine(line - 1)
       StringF(msg, 'Compile error at line \d', line)
     ELSEIF line >= first
       StringF(msg, 'Compile error in the generated code (line \d of the .gen.e file)', line - first + 1)
     ELSE
-      showCode()
-      set(editor, MUIA_TextEditor_CursorY, line - 1)
+      showFileLine(line - 1)
       StringF(msg, 'Compile error at line \d', line)
     ENDIF
     status(msg)
@@ -1782,7 +1855,7 @@ ENDPROC page = 1
 PROC doUndo()
   DEF i
   IF codeTabActive()
-    doMethodA(editor, [MUIM_TextEditor_ARexxCmd, 'UNDO'])
+    doMethodA(activeEditor(), [MUIM_TextEditor_ARexxCmd, 'UNDO'])
     RETURN
   ENDIF
   commitEdits()
@@ -1808,7 +1881,7 @@ ENDPROC
 
 PROC doRedo()
   IF codeTabActive()
-    doMethodA(editor, [MUIM_TextEditor_ARexxCmd, 'REDO'])
+    doMethodA(activeEditor(), [MUIM_TextEditor_ARexxCmd, 'REDO'])
     RETURN
   ENDIF
   commitEdits()
@@ -2089,6 +2162,25 @@ PROC makeEditors()
   ELSE
     Raise('Could not create the editor (is TextEditor.mcc installed?)')
   ENDIF
+
+  -> the global variables and the modules have editors of their own
+  slGlobals := ScrollbarObject,
+    MUIA_Group_Horiz, FALSE,
+  End
+  edGlobals := TextEditorObject,
+    MUIA_TextEditor_ExportHook, MUIV_TextEditor_ExportHook_Plain,
+    MUIA_TextEditor_Slider, slGlobals,
+  End
+  slModules := ScrollbarObject,
+    MUIA_Group_Horiz, FALSE,
+  End
+  edModules := TextEditorObject,
+    MUIA_TextEditor_ExportHook, MUIV_TextEditor_ExportHook_Plain,
+    MUIA_TextEditor_Slider, slModules,
+  End
+  IF (edGlobals = NIL) OR (edModules = NIL) THEN Raise('Could not create the editors')
+  set(edGlobals, MUIA_TextEditor_FixedFont, MUI_TRUE)
+  set(edModules, MUIA_TextEditor_FixedFont, MUI_TRUE)
 
   logSlider := ScrollbarObject,
     MUIA_Group_Horiz, FALSE,
@@ -2410,11 +2502,24 @@ PROC makeEditorPanel()
     End,
     Child, VGroup,
       Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
-      Child, HGroup,
+      Child, codePages := RegisterGroup(['Code', 'Globals', 'Modules', NIL]),
         MUIA_Weight, 80,
-        MUIA_Group_Spacing, 0,
-        Child, editor,
-        Child, slider,
+        MUIA_Register_Frame, MUI_TRUE,
+        Child, HGroup,
+          MUIA_Group_Spacing, 0,
+          Child, editor,
+          Child, slider,
+        End,
+        Child, HGroup,
+          MUIA_Group_Spacing, 0,
+          Child, edGlobals,
+          Child, slGlobals,
+        End,
+        Child, HGroup,
+          MUIA_Group_Spacing, 0,
+          Child, edModules,
+          Child, slModules,
+        End,
       End,
       Child, HGroup,
         MUIA_Weight, 20,

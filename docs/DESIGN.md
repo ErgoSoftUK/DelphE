@@ -191,6 +191,12 @@ PROC connect(app) OF tMainForm   -> MUIM_Notify -> ReturnID per bound event
 PROC handleEvent(id) OF tMainForm   -> SELECT id, call the handler methods
 ```
 
+- **Three parts.** The user's file is cut into modules, globals and code by `splitSections` in
+  UserFile.e and put back by `joinSections`; the Code tab shows them in three editors. The file keeps
+  two marker lines, `->>> DELPHE GLOBALS` and `->>> DELPHE GENERATED CODE`. Files from before the
+  first marker are split by guessing (everything up to the last `MODULE` statement is modules, the
+  rest above the generated code is globals). Line numbers of the file map back to an editor through
+  the start lines of the parts (`showFileLine`).
 - **Why no INCLUDE:** Amiga E has no source include, only precompiled modules,
   and generated code that calls the user's handlers cannot be a module. So
   `buildSource` writes the program that `ec` compiles: the user's file with the

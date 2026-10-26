@@ -6,6 +6,7 @@ ec FormModel >> /build.out
 ec MForm >> /build.out
 ec Util >> /build.out
 ec Generator >> /build.out
+ec UserFile >> /build.out
 ec Project >> /build.out
 ec Highlight >> /build.out
 ec Builder >> /build.out
