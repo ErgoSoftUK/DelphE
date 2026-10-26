@@ -1375,6 +1375,8 @@ PROC genProjectHeader(fh, projName)
   put(fh, 'OPT PREPROCESS\nOPT LARGE\n\n')
   put(fh, 'MODULE \amuimaster\a, \alibraries/mui\a, \autility/tagitem\a,\n')
   put(fh, '       \aamigalib/boopsi\a\n\n')
+  put(fh, '-> Your global variables (DEF), constants and object types go here, above the\n')
+  put(fh, '-> generated code: E wants every global DEF before the first PROC.\n\n')
   put(fh, userMarkLine())
   put(fh, '\n')
 ENDPROC

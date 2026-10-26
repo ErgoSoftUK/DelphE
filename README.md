@@ -22,6 +22,9 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
+- **Global variables:** put `DEF`s, `CONST`s and `OBJECT` types in your file above the `DELPHE GENERATED CODE`
+  line (new files say so there): the generated procedures are inserted at that line, and E wants every
+  global `DEF` before the first `PROC`.
 - **Window close and timers:** a window has an `OnClose` event (set a handler on the window in the tree):
   it runs when the close gadget is clicked, and the window then closes (the main form ends the program,
   another form hides) unless the handler sets `self.keepOpen := TRUE`. Your handlers can call

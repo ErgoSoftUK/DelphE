@@ -1,7 +1,9 @@
-Window EntriesWindow "Entries" :fixw=260 :fixh=220 :arg="this" :center :open
+Window EntriesWindow "Entries" :fixw=260 :fixh=220 :center :open
   VGroup root
     Text lblHelp "One entry per line:"
     Memo memoEntries ""
     HGroup buttons
       Button btnOk "OK" @OnClick=btnOkClick
       Button btnCancel "Cancel" @OnClick=btnCancelClick
+  Utilities utilities1
+    Timer tmr1 @OnTimer=tmr1Timer :value=1000
