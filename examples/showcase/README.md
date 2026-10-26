@@ -3,8 +3,9 @@
 A small mixer with VU meters, built with DelphE. It is meant for screenshots and as a tour of what
 DelphE can do.
 
-Open `Mixer.mform` in the designer (`src/designer/designer examples/showcase/Mixer.mform`), then
-Build and Run (Right-Amiga+B, Right-Amiga+R).
+Open the project in the designer (`src/designer/designer examples/showcase/showcase.mproj`), then
+Build and Run (Right-Amiga+B, Right-Amiga+R). The project lists the form (`Mixer.mform`) and the frame
+(`ChannelStrip.mframe`), so both are in the form drop-down at the top of the inspector.
 
 ## What is in it
 
@@ -22,7 +23,7 @@ Build and Run (Right-Amiga+B, Right-Amiga+R).
 
 ## Screenshot ideas
 
-1. **The designer, whole window:** `Mixer.mform` open, the Mixer tab showing, the Properties page of a
+1. **The designer, whole window:** the project open (the form drop-down shows Mixer and ChannelStrip), the Mixer tab showing, the Properties page of a
    component selected (try `sldVol` in `ChannelStrip.mframe`, or the window itself for its ID).
 2. **The component palette:** the Layout, Input, Display and Utility tabs.
 3. **The tree:** expanded, showing the frames, the Utilities branch and the menu strip.

@@ -1,0 +1,3 @@
+Project "Mixer"
+Form "Mixer.mform"
+Form "ChannelStrip.mframe"
