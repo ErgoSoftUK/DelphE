@@ -127,7 +127,7 @@ is kept out of version control.
 ->>> DELPHE GENERATED CODE (the .gen.e file is inserted here when you compile ...)
 
 PROC btnOkClick() OF tMainForm                                    (yours)
-  -> TODO: handle OnClick of btnOk
+  -> TODO: handle OnClick of btnOk (components are fields of self, e.g. self.btnOk)
 ENDPROC
 
 PROC main() ...                                                   (yours)

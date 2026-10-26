@@ -17,3 +17,6 @@ Window MainForm "Hello DelphE"
             Memo mem1 ""
             Spacer spc1
           Gauge gau1 ""
+  Utilities utilities1
+    MessageDialog mdlg1 "Are you sure?" :arg="OK|Cancel"
+    FileDialog fdlg1 "Select a file" :arg="#?"
