@@ -62,10 +62,25 @@ source keeps the compiled program independent of the IDE.
 | ColGroup | (none)                     |                 | container; Value = number of columns |
 | Scroll  | (none)                      |                 | container: its children scroll in a virtual group |
 | Memo    | initial text                |                 | TextEditor.mcc with its scrollbar; needs that class |
+| Utilities | (none)                    |                 | the window's last child; holds the non-visual components below |
+| FileDialog | requester title        |                 | non-visual; `:arg` = pattern, `:save` = save mode; `execute()` |
+| MessageDialog | the message         |                 | non-visual; `:arg` = buttons separated by `|`; `execute()` gives the button number |
 
 Optional properties (any component except the window): weight, fixed width,
 fixed height, font, hint (bubble help) and disabled; groups also have a frame.
 Properties left blank are simply not emitted, so MUI's defaults apply.
+
+**Non-visual components.** The window's children are the form (its root group, always
+first) and, once a non-visual component is added, a `Utilities` branch (always last).
+`rootOf` and `utilitiesOf` in FormModel.e find them; the Builder and Generator use only
+the root group. Utility kinds (`isUtilityKind`) may live only in that branch, and visual
+kinds may not: `doAdd` places them, and `validDrop` refuses a drag that would break the
+rule. The Utilities node itself cannot be moved, and has no properties. Utilities get a
+field in the form object like any other leaf, typed as a small helper object (`tFileDialog`,
+`tMessageDialog`) that the `.gen.e` carries itself, with its procedures, only if a form uses
+them (`genRuntimeTypes` and `genRuntimeProcs`; in a project the procedures come after the
+globals). They need no extra module. The `:arg` property holds a file dialog's pattern or a
+message dialog's buttons.
 
 A component can need a MUI class beyond MUI itself (`kindClass` in FormModel.e; today only
 Memo, with `TextEditor.mcc`). The designer checks whether the class file is in `MUI:Libs/MUI/`

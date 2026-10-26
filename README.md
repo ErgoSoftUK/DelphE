@@ -21,6 +21,10 @@ source.
   Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, ColGroup (columns), Scroll
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
+- **Utilities:** non-visual components (a file dialog and a message dialog so far) live in a
+  Utilities branch of the window, added from the Utility palette tab. Your code calls them:
+  `self.fdlg1.execute()` returns whether a file was chosen (`self.fdlg1.path`), and
+  `self.mdlg1.execute()` returns the number of the button pressed.
 - **Entries dialog:** a `...` button beside Title/items opens a small editor with
   one entry per line, for Cycle, Radio and List components.
 - **Properties:** weight, fixed width/height, font, hint, disabled, group frame,
@@ -65,7 +69,7 @@ src/Project.e       .mproj reader and writer
 src/Preview.e       standalone live preview: Preview [file.mform]
 src/designer/       the designer: Designer.e
 src/mcc/            E modules for Listtree.mcc, TextEditor.mcc and Toolbar.mcc
-Images/             toolbar image strips (actions.iff, layout.iff, input.iff, display.iff)
+Images/             toolbar image strips (actions.iff, layout.iff, input.iff, display.iff, utility.iff)
 tools/              development tools: make-icons.ps1 (rebuilds the strips from the
                     LED icon pack), GenTest.e (smoke test for the reader, writer and
                     generator, no MUI) and PenTest.e (shows TextEditor's pen colours)

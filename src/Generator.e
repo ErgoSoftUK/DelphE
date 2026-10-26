@@ -194,6 +194,11 @@ PROC declareLeaves(fh, c: PTR TO component)
   IF isContainer(c.kind) = FALSE
     put(fh, '  ')
     put(fh, c.name)
+    IF c.kind = CK_FILEDLG
+      put(fh, ': PTR TO tFileDialog')
+    ELSEIF c.kind = CK_MSGDLG
+      put(fh, ': PTR TO tMessageDialog')
+    ENDIF
     put(fh, '\n')
     IF c.kind = CK_MEMO
       put(fh, '  ')
@@ -209,6 +214,12 @@ PROC declareLeaves(fh, c: PTR TO component)
 ENDPROC
 
 /*** leaf widgets ***/
+
+-> The title of the window a component belongs to
+PROC windowTitle(c: PTR TO component)
+  WHILE c.parent DO c := c.parent
+  IF c.title THEN RETURN c.title
+ENDPROC ''
 
 PROC leafExpr(fh, c: PTR TO component)
   DEF kind
@@ -271,6 +282,28 @@ PROC leafExpr(fh, c: PTR TO component)
       putPair(fh, ', MUIA_Gauge_Current, ', numOr(c, PF_VALUE, c.value, 0))
       emitLeafExtras(fh, c)
       put(fh, ', End')
+    CASE CK_FILEDLG
+      put(fh, 'delpheFileDialog(')
+      quoted(fh, c.title)
+      put(fh, ', ')
+      IF c.propFlags AND PF_ARG
+        quoted(fh, c.arg)
+      ELSE
+        put(fh, '\a#?\a')
+      ENDIF
+      IF c.propFlags AND PF_SAVE THEN put(fh, ', TRUE)') ELSE put(fh, ', FALSE)')
+    CASE CK_MSGDLG
+      put(fh, 'delpheMessageDialog(')
+      quoted(fh, c.title)
+      put(fh, ', ')
+      IF c.propFlags AND PF_ARG
+        quoted(fh, c.arg)
+      ELSE
+        put(fh, '\aOK\a')
+      ENDIF
+      put(fh, ', ')
+      quoted(fh, windowTitle(c))
+      put(fh, ')')
     CASE CK_SPACER
       put(fh, 'RectangleObject')
       emitLeafExtras(fh, c)
@@ -355,7 +388,7 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       put(fh, 'MUIA_Window_ID, \qMAIN\q,\n')
       indent(fh, depth + 1)
       put(fh, 'WindowContents,\n')
-      ch := c.firstChild
+      ch := rootOf(c)
       IF ch
         indent(fh, depth + 2)
         containerExpr(fh, ch, depth + 2)
@@ -706,6 +739,57 @@ PROC genPath(path)
   StrAdd(s, '.gen.e', ALL)
 ENDPROC s
 
+-> Does any of these forms use a component of this kind?
+PROC anyUses(forms: PTR TO LONG, n, kind)
+  DEF i
+  FOR i := 0 TO n - 1
+    IF usesKind(forms[i], kind) THEN RETURN TRUE
+  ENDFOR
+ENDPROC FALSE
+
+-> Object types of the dialogs, which are not MUI objects but small helpers the
+-> generated file carries itself, so programs need no extra module
+PROC genRuntimeTypes(fh, forms: PTR TO LONG, n)
+  IF anyUses(forms, n, CK_FILEDLG)
+    put(fh, 'MODULE \aasl\a, \alibraries/asl\a\n\n')
+    put(fh, '-> a file requester: set pattern, call execute(), read path\n')
+    put(fh, 'OBJECT tFileDialog\n  title: PTR TO CHAR\n  pattern: PTR TO CHAR\n')
+    put(fh, '  drawer: PTR TO CHAR   -> an E-string: change it with StrCopy()\n')
+    put(fh, '  path: PTR TO CHAR     -> the chosen file, with its drawer\n  save\nENDOBJECT\n\n')
+  ENDIF
+  IF anyUses(forms, n, CK_MSGDLG)
+    put(fh, '-> a message requester: call execute(); it returns the number of the button chosen\n')
+    put(fh, 'OBJECT tMessageDialog\n  text: PTR TO CHAR\n  buttons: PTR TO CHAR\n  windowTitle: PTR TO CHAR\nENDOBJECT\n\n')
+  ENDIF
+ENDPROC
+
+PROC genRuntimeProcs(fh, forms: PTR TO LONG, n)
+  IF anyUses(forms, n, CK_FILEDLG)
+    put(fh, 'PROC delpheFileDialog(title, pattern, save)\n  DEF d: PTR TO tFileDialog\n  NEW d\n')
+    put(fh, '  d.title := title\n  d.pattern := pattern\n  d.drawer := String(260)\n  d.path := String(260)\n  d.save := save\nENDPROC d\n\n')
+    put(fh, 'PROC execute() OF tFileDialog\n  DEF req: PTR TO filerequester, ok, flags, okText, n\n')
+    put(fh, '  ok := FALSE\n  flags := FILF_PATGAD\n  okText := \aOpen\a\n')
+    put(fh, '  IF self.save\n    flags := flags OR FILF_SAVE\n    okText := \aSave\a\n  ENDIF\n')
+    put(fh, '  IF (aslbase := OpenLibrary(\aasl.library\a, 37))\n')
+    put(fh, '    req := AllocAslRequest(ASL_FILEREQUEST, NIL)\n    IF req\n')
+    put(fh, '      IF AslRequest(req, [ASL_HAIL, self.title, ASL_DIR, self.drawer, ASL_PATTERN, self.pattern,\n')
+    put(fh, '                          ASL_FUNCFLAGS, flags, ASL_OKTEXT, okText, NIL])\n')
+    put(fh, '        StrCopy(self.drawer, req.drawer, ALL)\n        StrCopy(self.path, req.drawer, ALL)\n')
+    put(fh, '        n := StrLen(self.path)\n')
+    put(fh, '        IF n > 0\n          IF (self.path[n - 1] <> \a:\a) AND (self.path[n - 1] <> \a/\a) THEN StrAdd(self.path, \a/\a, ALL)\n        ENDIF\n')
+    put(fh, '        StrAdd(self.path, req.file, ALL)\n        ok := TRUE\n      ENDIF\n      FreeAslRequest(req)\n    ENDIF\n')
+    put(fh, '    CloseLibrary(aslbase)\n  ENDIF\nENDPROC ok\n\n')
+  ENDIF
+  IF anyUses(forms, n, CK_MSGDLG)
+    put(fh, 'PROC delpheMessageDialog(text, buttons, windowTitle)\n  DEF d: PTR TO tMessageDialog\n  NEW d\n')
+    put(fh, '  d.text := text\n  d.buttons := buttons\n  d.windowTitle := windowTitle\nENDPROC d\n\n')
+    put(fh, 'PROC execute() OF tMessageDialog\n  DEF n, i, r\n  n := 1\n')
+    put(fh, '  FOR i := 0 TO StrLen(self.buttons) - 1\n    IF self.buttons[i] = \a|\a THEN n++\n  ENDFOR\n')
+    put(fh, '  r := EasyRequestArgs(NIL, [20, 0, self.windowTitle, self.text, self.buttons], NIL, NIL)\n')
+    put(fh, '  -> EasyRequest gives 0 for the last button\n  IF r = 0 THEN r := n\nENDPROC r\n\n')
+  ENDIF
+ENDPROC
+
 -> The generated file has no module for TextEditor.mcc, so a memo gets its tags as constants
 PROC genConstants(fh, forms: PTR TO LONG, n)
   DEF i, used
@@ -820,6 +904,8 @@ PROC generateFile(path, win: PTR TO component)
   fh := openGenFile(gp)
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
   genConstants(fh, [win], 1)
+  genRuntimeTypes(fh, [win], 1)
+  genRuntimeProcs(fh, [win], 1)
   genRegion(fh, win, NIL, 0)
   Close(fh)
   res := syncUserFile(path, NIL, [win], 1)
@@ -1011,6 +1097,7 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
   fh := openGenFile(genPath(path))
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
   genConstants(fh, forms, n)
+  genRuntimeTypes(fh, forms, n)
   FOR i := 0 TO n - 1
     win := forms[i]
     tag := formTag('type', win)
@@ -1018,6 +1105,7 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
     DisposeLink(tag)
   ENDFOR
   genGlobalsRegion(fh, forms, n)
+  genRuntimeProcs(fh, forms, n)
   FOR i := 0 TO n - 1
     win := forms[i]
     tag := formTag('form', win)

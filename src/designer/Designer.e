@@ -43,14 +43,14 @@ DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
     undoTop, redoTop, lastTitleEdited: PTR TO component
 
 DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, entriesEditor, entriesSlider, btnEntries, btnEntriesOk, btnEntriesCancel,
-    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, layoutBar, inputBar, displayBar, palPages, palKinds1, palKinds2, palKinds3,
-    inspPages, inspTitles, actionsDef, layoutDef, inputDef, displayDef,
+    liveHolder, livePlaceholder, previewArea, previewHost, sldW, sldH, liveObj, liveStale, actionsBar, layoutBar, inputBar, displayBar, palPages, palKinds1, palKinds2, palKinds3, palKinds4, utilBar,
+    inspPages, inspTitles, actionsDef, layoutDef, inputDef, displayDef, utilDef,
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     editor, slider, txtCodePath,
     logEditor, logSlider,
-    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
@@ -160,7 +160,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar
   w := 0
   fx := 0
   fy := 0
@@ -173,6 +173,9 @@ PROC showProps(c: PTR TO component)
   isGauge := FALSE
   isItems := FALSE
   isCols := FALSE
+  isDlg := FALSE
+  isFile := FALSE
+  ar := ''
   fi := 0
   flags := 0
   IF c
@@ -184,8 +187,11 @@ PROC showProps(c: PTR TO component)
     mx := c.maxV
     vl := c.value
     IF flags AND PF_FONT THEN fi := c.fontIdx
-    IF c.kind <> CK_WINDOW THEN usable := TRUE
-    IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) THEN isGroup := TRUE
+    IF isUtilityKind(c.kind) THEN isDlg := TRUE
+    IF c.kind = CK_FILEDLG THEN isFile := TRUE
+    IF (c.kind <> CK_WINDOW) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) THEN usable := TRUE
+    IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) AND (c.kind <> CK_UTILS) THEN isGroup := TRUE
+    IF (flags AND PF_ARG) AND c.arg THEN ar := c.arg
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
     IF c.kind = CK_COLGROUP THEN isCols := TRUE
@@ -205,6 +211,8 @@ PROC showProps(c: PTR TO component)
   ENDIF
   showFlag(chkDisabled, flags, PF_DISABLED)
   showFlag(chkFrame, flags, PF_FRAME)
+  showFlag(chkSave, flags, PF_SAVE)
+  set(strArg, MUIA_String_Contents, ar)
   set(cycFont, MUIA_Cycle_Active, fi)
 
   setEnabled(strWeight, usable)
@@ -214,6 +222,8 @@ PROC showProps(c: PTR TO component)
   setEnabled(chkDisabled, usable)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
+  setEnabled(strArg, isDlg)
+  setEnabled(chkSave, isFile)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
@@ -253,13 +263,24 @@ PROC readNumberOrComplain(gadget, bit, what, c: PTR TO component)
   ENDIF
 ENDPROC b, v, ok
 
+-> Do two texts say the same? NIL counts as empty.
+PROC sameText(a, b)
+  DEF la, lb
+  la := 0
+  lb := 0
+  IF a THEN la := StrLen(a)
+  IF b THEN lb := StrLen(b)
+  IF la <> lb THEN RETURN FALSE
+  IF la = 0 THEN RETURN TRUE
+ENDPROC StrCmp(a, b, ALL)
+
 -> Applies the property gadgets to the selected component
 PROC commitProps()
   DEF c: PTR TO component, nf, nw, nfx, nfy, nmn, nmx, nvl
-  DEF p, sel, bit, v, ok, h: PTR TO CHAR, i, fnt
+  DEF p, sel, bit, v, ok, h: PTR TO CHAR, i, fnt, a: PTR TO CHAR, ap
   c := selected
   IF c = NIL THEN RETURN
-  IF c.kind = CK_WINDOW THEN RETURN
+  IF (c.kind = CK_WINDOW) OR (c.kind = CK_UTILS) THEN RETURN
 
   nf := 0
 
@@ -306,13 +327,22 @@ PROC commitProps()
   ENDFOR
   IF StrLen(h) > 0 THEN nf := nf OR PF_HINT
 
+  -> the pattern or buttons of a dialog, and the save mode of a file dialog
+  get(strArg, MUIA_String_Contents, {ap})
+  a := copyStr(ap)
+  FOR i := 0 TO StrLen(a) - 1
+    IF a[i] = 34 THEN a[i] := 39
+  ENDFOR
+  IF isUtilityKind(c.kind) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
+  IF c.kind = CK_FILEDLG
+    get(chkSave, MUIA_Selected, {sel})
+    IF sel THEN nf := nf OR PF_SAVE
+  ENDIF
+
   IF nf = c.propFlags
     IF (nw = c.weight) AND (nfx = c.fixW) AND (nfy = c.fixH)
       IF (nmn = c.minV) AND (nmx = c.maxV) AND (nvl = c.value) AND (fnt = c.fontIdx)
-        IF (nf AND PF_HINT) = 0 THEN RETURN
-        IF StrLen(h) = StrLen(c.hint)
-          IF StrCmp(h, c.hint, ALL) THEN RETURN
-        ENDIF
+        IF sameText(h, c.hint) AND sameText(a, c.arg) THEN RETURN
       ENDIF
     ENDIF
   ENDIF
@@ -327,6 +357,7 @@ PROC commitProps()
   c.value := nvl
   c.fontIdx := fnt
   c.hint := h
+  c.arg := a
   markDirty()
   status('Properties updated')
 ENDPROC
@@ -1237,34 +1268,61 @@ PROC doAdd(idx)
     ENDIF
   ENDIF
 
-  target := selected
-  IF target = NIL THEN target := form
-  IF isContainer(target.kind) = FALSE THEN target := target.parent
-
-  IF target.kind = CK_WINDOW
-    IF target.firstChild
-      status('The window already has a root group: select a group first')
+  IF isUtilityKind(kind)
+    -> non-visual components go in the Utilities branch, behind the form
+    IF rootOf(form) = NIL
+      status('Add a group to the window first')
       RETURN
     ENDIF
-    IF isContainer(kind) = FALSE
-      status('The window needs a group at the top')
-      RETURN
+    target := utilitiesOf(form)
+  ELSE
+    target := selected
+    IF target = NIL THEN target := form
+    IF isContainer(target.kind) = FALSE THEN target := target.parent
+    -> the Utilities branch holds only non-visual components
+    IF target.kind = CK_UTILS
+      target := rootOf(form)
+      IF target = NIL THEN target := form
+    ENDIF
+
+    IF target.kind = CK_WINDOW
+      IF rootOf(target)
+        status('The window already has a root group: select a group first')
+        RETURN
+      ENDIF
+      IF isContainer(kind) = FALSE
+        status('The window needs a group at the top')
+        RETURN
+      ENDIF
     ENDIF
   ENDIF
 
   c := newComponent(kind,
          uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
                               'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
-                              'spc', 'col', 'scr', 'mem'], idx)),
+                              'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg'], idx)),
          ListItem([NIL, NIL, 'Button', 'Label', '', '',
                    'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
-                   'Page 1|Page 2', NIL, NIL, NIL, ''], idx))
+                   'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?'], idx))
   pushUndo()
-  target.addChild(c)
+  IF target = NIL
+    target := newComponent(CK_UTILS, uniqueName('utilities'), NIL)
+    form.addChild(target)
+  ENDIF
+  -> the root group goes first, ahead of a Utilities branch
+  IF target.kind = CK_WINDOW THEN target.insertAt(c, 0) ELSE target.addChild(c)
   -> a column group starts with two columns, shown in the Value field
   IF kind = CK_COLGROUP
     c.value := 2
     c.propFlags := c.propFlags OR PF_VALUE
+  ENDIF
+  IF kind = CK_FILEDLG
+    c.arg := '#?'
+    c.propFlags := c.propFlags OR PF_ARG
+  ENDIF
+  IF kind = CK_MSGDLG
+    c.arg := 'OK|Cancel'
+    c.propFlags := c.propFlags OR PF_ARG
   ENDIF
   -> each child of a Pages component is a page: start with two
   IF kind = CK_PAGES
@@ -1300,6 +1358,7 @@ PROC doMove(delta)
   IF c = NIL THEN RETURN
   p := c.parent
   IF p = NIL THEN RETURN
+  IF p.kind = CK_WINDOW THEN RETURN
   i := p.indexOf(c)
   j := i + delta
   IF (j < 0) OR (j >= p.childCount()) THEN RETURN
@@ -1353,19 +1412,48 @@ PROC treeMatches(node, c: PTR TO component)
   IF mc THEN RETURN FALSE
 ENDPROC TRUE
 
+-> Can the children of this node stay where they are? Only non-visual components
+-> may be in the Utilities branch, and they may be nowhere else.
+PROC validChildren(node, c: PTR TO component)
+  DEF child: PTR TO muis_listtree_treenode, d: PTR TO component, inUtils
+  inUtils := (c.kind = CK_UTILS)
+  child := firstChildNode(node)
+  WHILE child
+    d := child.tn_User
+    IF inUtils
+      IF isUtilityKind(d.kind) = FALSE THEN RETURN FALSE
+    ELSE
+      IF isUtilityKind(d.kind) OR (d.kind = CK_UTILS) THEN RETURN FALSE
+    ENDIF
+    IF isContainer(d.kind)
+      IF validChildren(child, d) = FALSE THEN RETURN FALSE
+    ENDIF
+    child := nextSiblingNode(child)
+  ENDWHILE
+ENDPROC TRUE
+
 -> Is the arrangement the tree now shows one the model can hold? There must be
--> exactly one top-level entry, the window, and the window may hold only a
--> single group.
+-> exactly one top-level entry, the window. It holds one group (the form) and
+-> then, optionally, the Utilities branch.
 PROC validDrop(rootNode: PTR TO muis_listtree_treenode)
-  DEF wchild: PTR TO muis_listtree_treenode, d: PTR TO component
+  DEF wchild: PTR TO muis_listtree_treenode, w2: PTR TO muis_listtree_treenode
+  DEF d: PTR TO component, d2: PTR TO component
   IF rootNode = NIL THEN RETURN FALSE
   IF rootNode.tn_User <> form THEN RETURN FALSE
   IF nextSiblingNode(rootNode) THEN RETURN FALSE
   wchild := firstChildNode(rootNode)
   IF wchild
-    IF nextSiblingNode(wchild) THEN RETURN FALSE
     d := wchild.tn_User
     IF isContainer(d.kind) = FALSE THEN RETURN FALSE
+    IF d.kind = CK_UTILS THEN RETURN FALSE
+    IF validChildren(wchild, d) = FALSE THEN RETURN FALSE
+    w2 := nextSiblingNode(wchild)
+    IF w2
+      d2 := w2.tn_User
+      IF d2.kind <> CK_UTILS THEN RETURN FALSE
+      IF nextSiblingNode(w2) THEN RETURN FALSE
+      IF validChildren(w2, d2) = FALSE THEN RETURN FALSE
+    ENDIF
   ENDIF
 ENDPROC TRUE
 
@@ -1558,8 +1646,8 @@ PROC refreshLive()
     Mui_DisposeObject(liveObj)
     liveObj := NIL
   ENDIF
-  IF form.firstChild
-    obj := buildObject(form.firstChild)
+  IF rootOf(form)
+    obj := buildObject(rootOf(form))
     IF obj
       -> the placeholder only stops an empty box; beside the form it would take
       -> the spare space and push the form to the bottom
@@ -1832,6 +1920,7 @@ PROC makeToolbars()
   palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER]
   palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
   palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
+  palKinds4 := [CK_FILEDLG, CK_MSGDLG]
 
   layoutDef := buildBank([
     Toolbar_HintButton(0, 'Add a vertical group', NIL),
@@ -1878,6 +1967,18 @@ PROC makeToolbars()
     MUIA_ShortHelp, TRUE,
   End
   IF displayBar = NIL THEN Raise('Could not create the component palette')
+
+  utilDef := buildBank([
+    Toolbar_HintButton(0, 'Add a file dialog (non-visual: call execute() from your code)', NIL),
+    Toolbar_HintButton(0, 'Add a message dialog (non-visual: call execute() from your code)', NIL),
+    Toolbar_End])
+  utilBar := ToolbarObject,
+    MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
+    MUIA_Toolbar_ImageNormal, imagePath('utility.iff'),
+    MUIA_Toolbar_Description, utilDef,
+    MUIA_ShortHelp, TRUE,
+  End
+  IF utilBar = NIL THEN Raise('Could not create the component palette')
  
 ENDPROC
 
@@ -1928,11 +2029,12 @@ PROC makeInspectorPanel()
       -> The tabs fill the width and take only the height they need; the buttons
       -> sit at the left, and the spare space at their right keeps the inspector
       -> resizable
-      Child, palPages := RegisterGroup(['Layout', 'Input', 'Display', NIL]),
+      Child, palPages := RegisterGroup(['Layout', 'Input', 'Display', 'Utility', NIL]),
         MUIA_VertWeight, 0,
         Child, HGroup, Child, layoutBar, Child, HSpace(0), End,
         Child, HGroup, Child, inputBar, Child, HSpace(0), End,
         Child, HGroup, Child, displayBar, Child, HSpace(0), End,
+        Child, HGroup, Child, utilBar, Child, HSpace(0), End,
       End,
       -> the component tree, with what acts on the selected component
       Child, VGroup,
@@ -1961,6 +2063,9 @@ PROC makeInspectorPanel()
               -> for a Cycle, Radio or List: edit the entries one per line
               Child, btnEntries := SimpleButton('...'),
             End,
+            Child, Label2('Pattern/buttons:'),
+            -> a file dialog's pattern or a message dialog's buttons (separated by |)
+            Child, strArg := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Weight:'),
             Child, strWeight := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Fixed width:'),
@@ -1991,6 +2096,11 @@ PROC makeInspectorPanel()
             Child, Label2('Frame:'),
             Child, HGroup,
               Child, chkFrame := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
+            Child, Label2('Save mode:'),
+            Child, HGroup,
+              Child, chkSave := CheckMark(FALSE),
               Child, HSpace(0),
             End,
           End,
@@ -2243,6 +2353,10 @@ PROC connectEvents()
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(chkFrame, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(chkSave, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(strArg, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(cycFont, [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(btnEditHandler, [MUIM_Notify, MUIA_Pressed, FALSE,
@@ -2266,6 +2380,7 @@ PROC connectEvents()
   hookPalette(layoutBar, palKinds1)
   hookPalette(inputBar, palKinds2)
   hookPalette(displayBar, palKinds3)
+  hookPalette(utilBar, palKinds4)
 ENDPROC
 
 PROC openWindows()
@@ -2283,7 +2398,7 @@ ENDPROC
 PROC handleId(id)
   DEF running
   running := TRUE
-  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 16))
+  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 20))
     doAdd(id - ID_PALETTE)
   ELSE
     SELECT id

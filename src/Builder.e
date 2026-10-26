@@ -268,8 +268,8 @@ ENDPROC obj
 -> Builds the window object for a CK_WINDOW component, or NIL on failure
 PROC buildWindow(c: PTR TO component)
   DEF root
-  IF c.firstChild = NIL THEN RETURN NIL
-  root := buildObject(c.firstChild)
+  IF rootOf(c) = NIL THEN RETURN NIL
+  root := buildObject(rootOf(c))
   IF root = NIL THEN RETURN NIL
 ENDPROC Mui_NewObjectA(MUIC_Window,
   [MUIA_Window_Title, titleOf(c),

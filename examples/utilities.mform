@@ -1,0 +1,7 @@
+Window UtilDemo "Utilities"
+  VGroup root
+    Button btnOpen "Open..." @OnClick=btnOpenClick
+    Button btnAsk "Ask" @OnClick=btnAskClick
+  Utilities utilities
+    FileDialog fdlg1 "Open a file" :arg="#?.e"
+    MessageDialog mdlg1 "Really quit?" :arg="Yes|No|Cancel"

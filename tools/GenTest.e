@@ -4,6 +4,8 @@
 ** then creates or updates MainForm.e (a complete program) with generateFile().
 */
 
+OPT LARGE
+
 MODULE '*/src/FormModel', '*/src/MForm', '*/src/Generator'
 
 PROC main()

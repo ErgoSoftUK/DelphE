@@ -10,11 +10,12 @@ OPT EXPORT
 
 ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
      CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES,
-     CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO
+     CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO,
+     CK_UTILS, CK_FILEDLG, CK_MSGDLG
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
-      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512
+      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512, PF_ARG = 1024, PF_SAVE = 2048
 
 OBJECT component
   kind
@@ -34,6 +35,7 @@ OBJECT component
   maxV                                -> slider/gauge maximum (PF_MAX)
   value                               -> slider/gauge value (PF_VALUE)
   fontIdx                             -> one of MUI's standard fonts, see fontName (PF_FONT)
+  arg                                 -> a file dialog's pattern, a message dialog's buttons (PF_ARG)
   uiNode                              -> designer's tree node for this component
 ENDOBJECT
 
@@ -51,15 +53,16 @@ PROC addChild(child: PTR TO component) OF component
   self.lastChild := child
 ENDPROC
 
-PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL)
+PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) OR (kind = CK_UTILS)
 
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
-                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo'], kind)
+                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo',
+                                  'Utilities', 'FileDialog', 'MessageDialog'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_MEMO
+  FOR k := CK_WINDOW TO CK_MSGDLG
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -181,6 +184,7 @@ PROC cloneTree(c: PTR TO component)
   n.maxV := c.maxV
   n.value := c.value
   n.fontIdx := c.fontIdx
+  n.arg := c.arg
   ch := c.firstChild
   WHILE ch
     n.addChild(cloneTree(ch))
@@ -304,3 +308,27 @@ PROC usesKind(c: PTR TO component, kind)
     ch := ch.next
   ENDWHILE
 ENDPROC FALSE
+
+-> Non-visual components (dialogs and the like) live in the Utilities branch of the
+-> window, which is its last child; the form itself is the first
+PROC isUtilityKind(kind) IS (kind = CK_FILEDLG) OR (kind = CK_MSGDLG)
+
+-> The window's root group: its first child that is not the Utilities branch, or NIL
+PROC rootOf(win: PTR TO component)
+  DEF ch: PTR TO component
+  ch := win.firstChild
+  WHILE ch
+    IF ch.kind <> CK_UTILS THEN RETURN ch
+    ch := ch.next
+  ENDWHILE
+ENDPROC NIL
+
+-> The window's Utilities branch, or NIL if it has none
+PROC utilitiesOf(win: PTR TO component)
+  DEF ch: PTR TO component
+  ch := win.firstChild
+  WHILE ch
+    IF ch.kind = CK_UTILS THEN RETURN ch
+    ch := ch.next
+  ENDWHILE
+ENDPROC NIL
