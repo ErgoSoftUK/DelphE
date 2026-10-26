@@ -163,7 +163,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse, isItem
   w := 0
   fx := 0
   fy := 0
@@ -178,6 +178,7 @@ PROC showProps(c: PTR TO component)
   isCols := FALSE
   isDlg := FALSE
   isUse := FALSE
+  isItem := FALSE
   isFile := FALSE
   ar := ''
   fi := 0
@@ -191,11 +192,12 @@ PROC showProps(c: PTR TO component)
     mx := c.maxV
     vl := c.value
     IF flags AND PF_FONT THEN fi := c.fontIdx
-    IF isUtilityKind(c.kind) THEN isDlg := TRUE
+    IF isUtilityKind(c.kind) AND (c.kind <> CK_MENUSTRIP) THEN isDlg := TRUE
+    IF c.kind = CK_MENUITEM THEN isItem := TRUE
     IF c.kind = CK_FILEDLG THEN isFile := TRUE
     IF c.kind = CK_USE THEN isUse := TRUE
-    IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) THEN usable := TRUE
-    IF isContainer(c.kind) AND (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) THEN isGroup := TRUE
+    IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) AND (isMenuKind(c.kind) = FALSE) THEN usable := TRUE
+    IF isContainer(c.kind) AND (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isMenuKind(c.kind) = FALSE) THEN isGroup := TRUE
     IF (flags AND PF_ARG) AND c.arg THEN ar := c.arg
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
@@ -224,11 +226,11 @@ PROC showProps(c: PTR TO component)
   setEnabled(strFixW, usable)
   setEnabled(strFixH, usable)
   setEnabled(strHint, usable)
-  setEnabled(chkDisabled, usable)
+  setEnabled(chkDisabled, usable OR isItem)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
-  setEnabled(strArg, isDlg OR isUse)
-  setEnabled(chkSave, isFile)
+  setEnabled(strArg, isDlg OR isUse OR isItem)
+  setEnabled(chkSave, isFile OR isItem)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
@@ -338,8 +340,8 @@ PROC commitProps()
   FOR i := 0 TO StrLen(a) - 1
     IF a[i] = 34 THEN a[i] := 39
   ENDFOR
-  IF (isUtilityKind(c.kind) OR (c.kind = CK_USE)) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
-  IF c.kind = CK_FILEDLG
+  IF (isUtilityKind(c.kind) OR (c.kind = CK_USE) OR (c.kind = CK_MENUITEM)) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
+  IF (c.kind = CK_FILEDLG) OR (c.kind = CK_MENUITEM)
     get(chkSave, MUIA_Selected, {sel})
     IF sel THEN nf := nf OR PF_SAVE
   ENDIF
@@ -1358,6 +1360,7 @@ ENDPROC relPath(outputDir(), path), fm.name
 
 PROC doAdd(idx)
   DEF kind, target: PTR TO component, c: PTR TO component, framePath, frameName, nm, ttl
+  DEF strip: PTR TO component
 
   commitEdits()
   kind := idx + 1          -> the palette lists VGroup onwards, which follow CK_WINDOW
@@ -1382,13 +1385,41 @@ PROC doAdd(idx)
       status('Add a group to the window first')
       RETURN
     ENDIF
+    IF (kind = CK_MENUSTRIP) AND menustripOf(form)
+      status('The window already has a menu strip')
+      RETURN
+    ENDIF
     target := utilitiesOf(form)
+  ELSEIF kind = CK_MENU
+    strip := menustripOf(form)
+    IF strip = NIL
+      status('Add a menu strip first (Utility tab)')
+      RETURN
+    ENDIF
+    target := strip
+  ELSEIF kind = CK_MENUITEM
+    -> into the selected menu, or beside the selected item; otherwise into the last menu
+    target := selected
+    IF target
+      IF target.kind = CK_MENUITEM THEN target := target.parent
+    ENDIF
+    IF target
+      IF (target.kind <> CK_MENU) AND (target.kind <> CK_MENUITEM) THEN target := NIL
+    ENDIF
+    IF target = NIL
+      strip := menustripOf(form)
+      IF strip THEN target := strip.lastChild
+      IF target = NIL
+        status('Add a menu strip and a menu first (Utility tab)')
+        RETURN
+      ENDIF
+    ENDIF
   ELSE
     target := selected
     IF target = NIL THEN target := form
     IF isContainer(target.kind) = FALSE THEN target := target.parent
     -> the Utilities branch holds only non-visual components
-    IF target.kind = CK_UTILS
+    IF (target.kind = CK_UTILS) OR isMenuKind(target.kind)
       target := rootOf(form)
       IF target = NIL THEN target := form
     ENDIF
@@ -1411,10 +1442,12 @@ PROC doAdd(idx)
   ELSE
     nm := uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
                                'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
-                               'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg'], idx))
+                               'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg',
+                               'frm', 'use', 'mstrip', 'mnu', 'mni'], idx))
     ttl := ListItem([NIL, NIL, 'Button', 'Label', '', '',
                      'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
-                     'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?'], idx)
+                     'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?',
+                     NIL, NIL, NIL, 'Menu', 'Item'], idx)
   ENDIF
   c := newComponent(kind, nm, ttl)
   pushUndo()
@@ -1532,16 +1565,11 @@ ENDPROC TRUE
 -> Can the children of this node stay where they are? Only non-visual components
 -> may be in the Utilities branch, and they may be nowhere else.
 PROC validChildren(node, c: PTR TO component)
-  DEF child: PTR TO muis_listtree_treenode, d: PTR TO component, inUtils
-  inUtils := (c.kind = CK_UTILS)
+  DEF child: PTR TO muis_listtree_treenode, d: PTR TO component
   child := firstChildNode(node)
   WHILE child
     d := child.tn_User
-    IF inUtils
-      IF isUtilityKind(d.kind) = FALSE THEN RETURN FALSE
-    ELSE
-      IF isUtilityKind(d.kind) OR (d.kind = CK_UTILS) THEN RETURN FALSE
-    ENDIF
+    IF allowedChild(c.kind, d.kind) = FALSE THEN RETURN FALSE
     IF isContainer(d.kind)
       IF validChildren(child, d) = FALSE THEN RETURN FALSE
     ENDIF
@@ -1562,7 +1590,7 @@ PROC validDrop(rootNode: PTR TO muis_listtree_treenode)
   IF wchild
     d := wchild.tn_User
     IF isContainer(d.kind) = FALSE THEN RETURN FALSE
-    IF d.kind = CK_UTILS THEN RETURN FALSE
+    IF (d.kind = CK_UTILS) OR isMenuKind(d.kind) THEN RETURN FALSE
     IF validChildren(wchild, d) = FALSE THEN RETURN FALSE
     w2 := nextSiblingNode(wchild)
     IF w2
@@ -2038,7 +2066,7 @@ PROC makeToolbars()
   palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER, CK_USE]
   palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
   palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
-  palKinds4 := [CK_FILEDLG, CK_MSGDLG]
+  palKinds4 := [CK_FILEDLG, CK_MSGDLG, CK_MENUSTRIP, CK_MENU, CK_MENUITEM]
 
   layoutDef := buildBank([
     Toolbar_HintButton(0, 'Add a vertical group', NIL),
@@ -2090,6 +2118,9 @@ PROC makeToolbars()
   utilDef := buildBank([
     Toolbar_HintButton(0, 'Add a file dialog (non-visual: call execute() from your code)', NIL),
     Toolbar_HintButton(0, 'Add a message dialog (non-visual: call execute() from your code)', NIL),
+    Toolbar_HintButton(0, 'Add a menu strip: holds the window menus (one per window)', NIL),
+    Toolbar_HintButton(0, 'Add a menu to the menu strip', NIL),
+    Toolbar_HintButton(0, 'Add a menu item (title - makes a separator; the Option field is its shortcut key)', NIL),
     Toolbar_End])
   utilBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
@@ -2182,7 +2213,7 @@ PROC makeInspectorPanel()
               -> for a Cycle, Radio or List: edit the entries one per line
               Child, btnEntries := SimpleButton('...'),
             End,
-            Child, Label2('Pattern/buttons/frame:'),
+            Child, Label2('Option:'),
             -> a file dialog's pattern or a message dialog's buttons (separated by |)
             Child, strArg := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Weight:'),
@@ -2217,7 +2248,7 @@ PROC makeInspectorPanel()
               Child, chkFrame := CheckMark(FALSE),
               Child, HSpace(0),
             End,
-            Child, Label2('Save mode:'),
+            Child, Label2('Save/checkable:'),
             Child, HGroup,
               Child, chkSave := CheckMark(FALSE),
               Child, HSpace(0),
@@ -2519,7 +2550,7 @@ ENDPROC
 PROC handleId(id)
   DEF running
   running := TRUE
-  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 20))
+  IF (id >= ID_PALETTE) AND (id < (ID_PALETTE + 30))
     doAdd(id - ID_PALETTE)
   ELSE
     SELECT id

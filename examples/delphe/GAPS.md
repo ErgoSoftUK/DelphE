@@ -7,7 +7,7 @@ hand-written windows in `src/designer/Designer.e`.
 
 | Gap | Where it shows | Notes |
 |-----|----------------|-------|
-| Menu strip | main window (no menus at all in `main.mform`) | Project, Edit, Build and View menus with shortcuts; Delphi's MainMenu |
+| Menu strip | done | MenuStrip, Menu and MenuItem components (see examples/menus.mform); `main.mform` could now get its Project, Edit, Build and View menus |
 | Toolbar.mcc | action toolbar, the four palette tabs | needs an image-strip property and a button list |
 | Listtree.mcc | component tree | plus drag and drop, which is a custom class |
 | Balance bar | between inspector and editor, and inside the inspector | easy: a MUI built-in |

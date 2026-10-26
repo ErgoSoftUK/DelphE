@@ -251,7 +251,7 @@ ENDPROC all
 
 PROC declareLeaves(fh, c: PTR TO component)
   DEF ch: PTR TO component
-  IF isContainer(c.kind) = FALSE
+  IF (isContainer(c.kind) = FALSE) OR isMenuKind(c.kind)
     put(fh, '  ')
     put(fh, c.name)
     IF c.kind = CK_USE
@@ -387,8 +387,58 @@ PROC leafExpr(fh, c: PTR TO component)
   ENDSELECT
 ENDPROC
 
+-> The name of the window's menu strip
+PROC stripName(win: PTR TO component)
+  DEF s: PTR TO component
+  s := menustripOf(win)
+  IF s THEN RETURN s.name
+ENDPROC ''
+
+-> The objects of a menu strip, from the items up: a menu is made of its items
+PROC createMenuTree(fh, c: PTR TO component)
+  DEF ch: PTR TO component, t
+  t := c.title
+  ch := c.firstChild
+  WHILE ch
+    createMenuTree(fh, ch)
+    ch := ch.next
+  ENDWHILE
+  put(fh, '  self.')
+  put(fh, c.name)
+  put(fh, ' := ')
+  IF c.kind = CK_MENUSTRIP
+    put(fh, 'MenustripObject')
+  ELSEIF c.kind = CK_MENU
+    put(fh, 'MenuObject, MUIA_Menu_Title, ')
+    quoted(fh, c.title)
+  ELSE
+    put(fh, 'MenuitemObject, MUIA_Menuitem_Title, ')
+    -> a title of "-" is a separator bar (NM_BARLABEL, which is -1)
+    IF (StrLen(t) = 1) AND (t[0] = "-") THEN put(fh, '-1') ELSE quoted(fh, c.title)
+    IF c.propFlags AND PF_ARG
+      IF StrLen(c.arg) > 0
+        put(fh, ', MUIA_Menuitem_Shortcut, ')
+        quoted(fh, c.arg)
+      ENDIF
+    ENDIF
+    IF c.propFlags AND PF_SAVE THEN put(fh, ', MUIA_Menuitem_Checkit, MUI_TRUE')
+    IF c.propFlags AND PF_DISABLED THEN put(fh, ', MUIA_Menuitem_Enabled, FALSE')
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    put(fh, ', MUIA_Family_Child, self.')
+    put(fh, ch.name)
+    ch := ch.next
+  ENDWHILE
+  put(fh, ', End\n')
+ENDPROC
+
 PROC createLeaves(fh, c: PTR TO component)
   DEF ch: PTR TO component
+  IF c.kind = CK_MENUSTRIP
+    createMenuTree(fh, c)
+    RETURN
+  ENDIF
   IF c.kind = CK_USE
     -> an instance of a frame: its events get their own range of ids
     useCounter++
@@ -484,6 +534,12 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       -> a window ID is a 4-char ULONG ("MAIN"), not a string pointer
       put(fh, 'MUIA_Window_ID, \qMAIN\q,\n')
       indent(fh, depth + 1)
+      IF menustripOf(c)
+        put(fh, 'MUIA_Window_Menustrip, self.')
+        put(fh, stripName(c))
+        put(fh, ',\n')
+        indent(fh, depth + 1)
+      ENDIF
       put(fh, 'WindowContents,\n')
       ch := rootOf(c)
       IF ch
@@ -609,6 +665,8 @@ PROC emitConnect(fh, c: PTR TO component)
           put(fh, ', [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
         CASE CK_LIST
           put(fh, ', [MUIM_Notify, MUIA_Listview_DoubleClick, MUI_TRUE, app, 2, MUIM_Application_ReturnID, ')
+        CASE CK_MENUITEM
+          put(fh, ', [MUIM_Notify, MUIA_Menuitem_Trigger, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
       ENDSELECT
       put(fh, 'self.idBase + ')
       putNum(fh, evCounter)

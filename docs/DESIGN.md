@@ -64,6 +64,9 @@ source keeps the compiled program independent of the IDE.
 | Memo    | initial text                |                 | TextEditor.mcc with its scrollbar; needs that class |
 | Utilities | (none)                    |                 | the window's last child; holds the non-visual components below |
 | FileDialog | requester title        |                 | non-visual; `:arg` = pattern, `:save` = save mode; `execute()` |
+| MenuStrip | (none)                   |                 | non-visual; the window's menu bar, one per window; holds Menus |
+| Menu    | menu title                  |                 | holds MenuItems |
+| MenuItem | item title (`-` = separator) | `OnSelect`    | `:arg` = shortcut key, `:save` = checkable, `:disabled`; holds MenuItems for a submenu |
 | MessageDialog | the message         |                 | non-visual; `:arg` = buttons separated by `|`; `execute()` gives the button number |
 
 Optional properties (any component except the window): weight, fixed width,
@@ -81,6 +84,14 @@ field in the form object like any other leaf, typed as a small helper object (`t
 them (`genRuntimeTypes` and `genRuntimeProcs`; in a project the procedures come after the
 globals). They need no extra module. The `:arg` property holds a file dialog's pattern or a
 message dialog's buttons.
+
+**Menus.** A `MenuStrip` is a non-visual component in the Utilities branch; `allowedChild`
+in FormModel.e says what may go under what (strip > menu > item > item, and nothing else), and
+both `doAdd` and `validDrop` use it. Menu parts are containers that all get a field, because the
+items need one for their notification. The generator builds the objects from the items up
+(`createMenuTree`: an item, then the menu that holds it, then the strip) and gives the window
+`MUIA_Window_Menustrip`; an item with a handler notifies on `MUIA_Menuitem_Trigger`. A separator
+is `MUIA_Menuitem_Title, -1` (NM_BARLABEL). `buildWindow` builds the same menus for the preview.
 
 **Frames.** A frame is a file like a form whose root is `Frame Name` (no window title or
 settings) with one root group; `isRootKind` covers windows and frames. A `Use` component

@@ -14,7 +14,7 @@ $strips = [ordered]@{
   'layout'     = 'layout_split_vertical', 'layout_split', 'table', 'application_side_list', 'ui_tab_content', 'arrow_inout', 'shape_group'
   'input'      = 'tab', 'textfield', 'accept', 'ui_combo_box', 'target', 'ui_slider_2', 'page_white_text'
   'display'    = 'font', 'chart_bar', 'application_view_list'
-  'utility'    = 'folder', 'comment'
+  'utility'    = 'folder', 'comment', 'application_form', 'text_list_bullets', 'text_indent'
 }
 $planes = 5
 $colours = 1 -shl $planes

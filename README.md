@@ -21,6 +21,10 @@ source.
   Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, ColGroup (columns), Scroll
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
+- **Menus:** a MenuStrip (one per window, in the Utilities branch) holds Menus, which hold
+  MenuItems; an item can hold items (a submenu). The Option field of an item is its shortcut key,
+  "Save/checkable" makes it a checkmark item, a title of `-` is a separator bar, and an item with a
+  handler runs it when chosen (`OnSelect`). The Preview window shows the menus.
 - **Frames:** a reusable group of components in its own `.mframe` file, like a Delphi frame. Name a
   new file `something.mframe` in the New dialog to make one. A form (or another frame) uses it with
   the Use button on the Layout tab; the frame is built inline in the preview, and your code reaches

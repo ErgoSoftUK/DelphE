@@ -1,0 +1,13 @@
+Window MenuDemo "Menus"
+  VGroup root
+    Text lblHello "Hello"
+  Utilities utilities
+    MenuStrip menu1
+      Menu mnuProject "Project"
+        MenuItem mniNew "New" @OnSelect=mniNewSelect :arg="N"
+        MenuItem mniSep1 "-"
+        MenuItem mniGrid "Show grid" :arg="G" :save @OnSelect=mniGridSelect
+        MenuItem mniMore "More"
+          MenuItem mniDeep "Deeper" @OnSelect=mniDeepSelect :disabled
+      Menu mnuEdit "Edit"
+        MenuItem mniUndo "Undo" :arg="Z"

@@ -306,14 +306,55 @@ PROC buildObject(c: PTR TO component)
   DisposeLink(tags)
 ENDPROC obj
 
+-> One part of a menu, with everything below it
+PROC buildMenuNode(c: PTR TO component)
+  DEF tags, n, ch: PTR TO component, child, obj, class, title
+  n := c.childCount()
+  tags := List((n * 2) + TAGROOM)
+  tags := ListCopy(tags, [TAG_IGNORE, 0])
+  class := MUIC_Menustrip
+  IF c.kind = CK_MENU
+    class := MUIC_Menu
+    tags := ListAdd(tags, [MUIA_Menu_Title, titleOf(c)])
+  ELSEIF c.kind = CK_MENUITEM
+    class := MUIC_Menuitem
+    title := titleOf(c)
+    -> a title of "-" is a separator bar (NM_BARLABEL, which is -1)
+    IF (StrLen(title) = 1) AND (title[0] = "-")
+      tags := ListAdd(tags, [MUIA_Menuitem_Title, -1])
+    ELSE
+      tags := ListAdd(tags, [MUIA_Menuitem_Title, title])
+    ENDIF
+    IF c.propFlags AND PF_ARG
+      IF StrLen(c.arg) > 0 THEN tags := ListAdd(tags, [MUIA_Menuitem_Shortcut, c.arg])
+    ENDIF
+    IF c.propFlags AND PF_SAVE THEN tags := ListAdd(tags, [MUIA_Menuitem_Checkit, MUI_TRUE])
+    IF c.propFlags AND PF_DISABLED THEN tags := ListAdd(tags, [MUIA_Menuitem_Enabled, FALSE])
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    child := buildMenuNode(ch)
+    IF child THEN tags := ListAdd(tags, [MUIA_Family_Child, child])
+    ch := ch.next
+  ENDWHILE
+  tags := ListAdd(tags, [TAG_DONE, 0])
+  obj := Mui_NewObjectA(class, tags)
+  DisposeLink(tags)
+ENDPROC obj
+
 -> Builds the window object for a CK_WINDOW component, or NIL on failure
 PROC buildWindow(c: PTR TO component)
-  DEF root
+  DEF root, strip: PTR TO component, menu, tags
   IF rootOf(c) = NIL THEN RETURN NIL
   root := buildObject(rootOf(c))
   IF root = NIL THEN RETURN NIL
-ENDPROC Mui_NewObjectA(MUIC_Window,
-  [MUIA_Window_Title, titleOf(c),
-   MUIA_Window_ID, "PREV",
-   MUIA_Window_RootObject, root,
-   TAG_DONE, 0])
+  tags := List(16)
+  tags := ListCopy(tags, [TAG_IGNORE, 0])
+  tags := ListAdd(tags, [MUIA_Window_Title, titleOf(c), MUIA_Window_ID, "PREV", MUIA_Window_RootObject, root])
+  strip := menustripOf(c)
+  IF strip
+    menu := buildMenuNode(strip)
+    IF menu THEN tags := ListAdd(tags, [MUIA_Window_Menustrip, menu])
+  ENDIF
+  tags := ListAdd(tags, [TAG_DONE, 0])
+ENDPROC Mui_NewObjectA(MUIC_Window, tags)
