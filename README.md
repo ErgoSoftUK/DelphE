@@ -22,7 +22,7 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
-- **Window properties:** select the window in the tree: Option is its ID (four characters; the first four
+- **Window properties:** select the window in the tree: the field labelled Window ID is its ID (four characters; the first four
   letters of its name if blank, so each form keeps its own place), Fixed width/height are its size,
   "Centred" puts it in the middle of the screen, and "Open at start" opens a form of a project when
   the program starts (the main form always does).

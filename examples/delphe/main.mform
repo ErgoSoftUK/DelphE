@@ -1,4 +1,4 @@
-Window DelphEMain "DelphE Designer" :arg="DELP"
+Window DelphEMain "DelphE Designer"
   VGroup root
     Text lblToolbar "[needs Toolbar.mcc: actions toolbar]" :weight=0
     HGroup body
@@ -29,10 +29,10 @@ Window DelphEMain "DelphE Designer" :arg="DELP"
       Pages editorPages "Form|Code" :weight=70
         VGroup formPage
           ColGroup sizeArea :value=2
-            Slider sldH :min=0 :max=100 :value=70 :vert @OnChange=sldHChange :weight=0
+            Slider sldH @OnChange=sldHChange :weight=0 :min=0 :max=100 :value=70 :vert
             Text lblPreviewHost "[needs a custom preview host]"
             Spacer corner :weight=0
-            Slider sldW :min=0 :max=100 :value=70 @OnChange=sldWChange :weight=0
+            Slider sldW @OnChange=sldWChange :weight=0 :min=0 :max=100 :value=70
         VGroup codePage
           Text txtCodePath ""
           Memo memoCode "" :weight=80

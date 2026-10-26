@@ -1,4 +1,4 @@
-Window EntriesWindow "Entries" :arg="DENT" :fixw=260 :fixh=220 :center
+Window EntriesWindow "Entries" :fixw=260 :fixh=220 :arg="this" :center :open
   VGroup root
     Text lblHelp "One entry per line:"
     Memo memoEntries ""

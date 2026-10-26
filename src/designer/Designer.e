@@ -53,7 +53,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     editor, slider, txtCodePath,
     logEditor, logSlider,
-    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, chkVert, chkCenter, chkOpen, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, lblArg, chkSave, chkVert, chkCenter, chkOpen, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
@@ -236,6 +236,21 @@ PROC showProps(c: PTR TO component)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
   setEnabled(strArg, isDlg OR isUse OR isItem OR isWin)
+  IF isWin
+    set(lblArg, MUIA_Text_Contents, 'Window ID:')
+  ELSEIF isUse
+    set(lblArg, MUIA_Text_Contents, 'Frame file:')
+  ELSEIF isItem
+    set(lblArg, MUIA_Text_Contents, 'Shortcut:')
+  ELSEIF c = NIL
+    set(lblArg, MUIA_Text_Contents, 'Option:')
+  ELSEIF c.kind = CK_FILEDLG
+    set(lblArg, MUIA_Text_Contents, 'Pattern:')
+  ELSEIF c.kind = CK_MSGDLG
+    set(lblArg, MUIA_Text_Contents, 'Buttons:')
+  ELSE
+    set(lblArg, MUIA_Text_Contents, 'Option:')
+  ENDIF
   setEnabled(chkCenter, isWin)
   setEnabled(chkOpen, isWin)
   setEnabled(chkSave, isFile OR isItem)
@@ -2238,7 +2253,13 @@ PROC makeInspectorPanel()
               -> for a Cycle, Radio or List: edit the entries one per line
               Child, btnEntries := SimpleButton('...'),
             End,
-            Child, Label2('Option:'),
+            -> what this field means depends on the component: showProps() names it
+            Child, lblArg := TextObject,
+              MUIA_Text_PreParse, '\er',
+              MUIA_Text_Contents, 'Option:',
+              MUIA_FixWidthTxt, 'Frame file: ',
+              MUIA_Weight, 0,
+            End,
             -> a file dialog's pattern or a message dialog's buttons (separated by |)
             Child, strArg := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Weight:'),
