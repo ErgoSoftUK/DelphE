@@ -12,7 +12,7 @@ ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
      CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES,
      CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO,
      CK_UTILS, CK_FILEDLG, CK_MSGDLG, CK_FRAME, CK_USE,
-     CK_MENUSTRIP, CK_MENU, CK_MENUITEM, CK_BALANCE
+     CK_MENUSTRIP, CK_MENU, CK_MENUITEM, CK_BALANCE, CK_TIMER
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
@@ -60,12 +60,12 @@ PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
                                   'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo',
                                   'Utilities', 'FileDialog', 'MessageDialog', 'Frame', 'Use',
-                                  'MenuStrip', 'Menu', 'MenuItem', 'Balance'], kind)
+                                  'MenuStrip', 'Menu', 'MenuItem', 'Balance', 'Timer'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_BALANCE
+  FOR k := CK_WINDOW TO CK_TIMER
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -148,6 +148,10 @@ PROC eventName(kind)
       RETURN 'OnDoubleClick'
     CASE CK_MENUITEM
       RETURN 'OnSelect'
+    CASE CK_WINDOW
+      RETURN 'OnClose'
+    CASE CK_TIMER
+      RETURN 'OnTimer'
   ENDSELECT
 ENDPROC NIL
 
@@ -170,6 +174,10 @@ PROC eventSuffix(kind)
       RETURN 'DoubleClick'
     CASE CK_MENUITEM
       RETURN 'Select'
+    CASE CK_WINDOW
+      RETURN 'Close'
+    CASE CK_TIMER
+      RETURN 'Timer'
   ENDSELECT
 ENDPROC NIL
 
@@ -318,7 +326,7 @@ ENDPROC FALSE
 
 -> Non-visual components (dialogs and the like) live in the Utilities branch of the
 -> window, which is its last child; the form itself is the first
-PROC isUtilityKind(kind) IS (kind = CK_FILEDLG) OR (kind = CK_MSGDLG) OR (kind = CK_MENUSTRIP)
+PROC isUtilityKind(kind) IS (kind = CK_FILEDLG) OR (kind = CK_MSGDLG) OR (kind = CK_MENUSTRIP) OR (kind = CK_TIMER)
 
 -> The window's root group: its first child that is not the Utilities branch, or NIL
 PROC rootOf(win: PTR TO component)

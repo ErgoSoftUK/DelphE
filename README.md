@@ -22,6 +22,13 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
+- **Window close and timers:** a window has an `OnClose` event (set a handler on the window in the tree):
+  it runs when the close gadget is clicked, and the window then closes (the main form ends the program,
+  another form hides) unless the handler sets `self.keepOpen := TRUE`. Your handlers can call
+  `self.closeWindow()` themselves. A Timer (Utility tab) runs its `OnTimer` handler every Interval
+  milliseconds; `self.tmr.stop()` and `self.tmr.start()` control it, and Disabled starts it stopped.
+  Both need your `main()` to call `delpheRun()`, which new files do; the log warns about an old
+  `main()` with its own loop.
 - **Window properties:** select the window in the tree: the field labelled Window ID is its ID (four characters; the first four
   letters of its name if blank, so each form keeps its own place), Fixed width/height are its size,
   "Centred" puts it in the middle of the screen, and "Open at start" opens a form of a project when

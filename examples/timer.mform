@@ -1,0 +1,6 @@
+Window TimerDemo "Timer" :arg="TIME" @OnClose=windowClose
+  VGroup root
+    Text lblTime "0"
+    Button btnStop "Stop" @OnClick=btnStopClick
+  Utilities utilities
+    Timer tmrTick :value=500 @OnTimer=tmrTickTimer

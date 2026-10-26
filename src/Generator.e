@@ -14,12 +14,13 @@
 
 OPT MODULE
 OPT EXPORT
+OPT LARGE
 
 MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util'
 
 CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
-DEF orphanList, evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
+DEF oldLoop, genMainName, orphanList, evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
 
 PROC put(fh, s) IS Write(fh, s, StrLen(s))
 
@@ -278,6 +279,8 @@ PROC declareLeaves(fh, c: PTR TO component)
     IF c.kind = CK_USE
       put(fh, ': PTR TO t')
       put(fh, frameTypeName(c))
+    ELSEIF c.kind = CK_TIMER
+      put(fh, ': PTR TO tTimer')
     ELSEIF c.kind = CK_FILEDLG
       put(fh, ': PTR TO tFileDialog')
     ELSEIF c.kind = CK_MSGDLG
@@ -369,6 +372,10 @@ PROC leafExpr(fh, c: PTR TO component)
       putPair(fh, ', MUIA_Gauge_Current, ', numOr(c, PF_VALUE, c.value, 0))
       emitLeafExtras(fh, c)
       put(fh, ', End')
+    CASE CK_TIMER
+      put(fh, 'delpheTimer(')
+      putNum(fh, numOr(c, PF_VALUE, c.value, 1000))
+      IF c.propFlags AND PF_DISABLED THEN put(fh, ', FALSE)') ELSE put(fh, ', TRUE)')
     CASE CK_FILEDLG
       put(fh, 'delpheFileDialog(')
       quoted(fh, c.title)
@@ -684,6 +691,14 @@ ENDPROC
 
 -> Event numbers are handed out in tree order; connect() and handleEvent()
 -> walk the tree the same way, so they agree.
+-> Does this component have an event that goes through a return ID? A timer's event
+-> is polled instead.
+PROC hasEvent(c: PTR TO component)
+  IF c.handler = NIL THEN RETURN FALSE
+  IF eventName(c.kind) = NIL THEN RETURN FALSE
+  IF c.kind = CK_TIMER THEN RETURN FALSE
+ENDPROC TRUE
+
 PROC emitConnect(fh, c: PTR TO component)
   DEF ch: PTR TO component, kind
   kind := c.kind
@@ -692,33 +707,37 @@ PROC emitConnect(fh, c: PTR TO component)
     put(fh, c.name)
     put(fh, '.connect(app)\n')
   ENDIF
-  IF c.handler
-    IF eventName(kind)
-      evCounter++
+  IF hasEvent(c)
+    evCounter++
+    IF kind = CK_WINDOW
+      put(fh, '  doMethodA(self.handle')
+    ELSE
       put(fh, '  doMethodA(self.')
       put(fh, c.name)
-      SELECT kind
-        CASE CK_BUTTON
-          put(fh, ', [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_STRING
-          put(fh, ', [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_CHECK
-          put(fh, ', [MUIM_Notify, MUIA_Selected, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_CYCLE
-          put(fh, ', [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_RADIO
-          put(fh, ', [MUIM_Notify, MUIA_Radio_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_SLIDER
-          put(fh, ', [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_LIST
-          put(fh, ', [MUIM_Notify, MUIA_Listview_DoubleClick, MUI_TRUE, app, 2, MUIM_Application_ReturnID, ')
-        CASE CK_MENUITEM
-          put(fh, ', [MUIM_Notify, MUIA_Menuitem_Trigger, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
-      ENDSELECT
-      put(fh, 'self.idBase + ')
-      putNum(fh, evCounter)
-      put(fh, '])\n')
     ENDIF
+    SELECT kind
+      CASE CK_WINDOW
+        put(fh, ', [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_BUTTON
+        put(fh, ', [MUIM_Notify, MUIA_Pressed, FALSE, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_STRING
+        put(fh, ', [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_CHECK
+        put(fh, ', [MUIM_Notify, MUIA_Selected, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_CYCLE
+        put(fh, ', [MUIM_Notify, MUIA_Cycle_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_RADIO
+        put(fh, ', [MUIM_Notify, MUIA_Radio_Active, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_SLIDER
+        put(fh, ', [MUIM_Notify, MUIA_Numeric_Value, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_LIST
+        put(fh, ', [MUIM_Notify, MUIA_Listview_DoubleClick, MUI_TRUE, app, 2, MUIM_Application_ReturnID, ')
+      CASE CK_MENUITEM
+        put(fh, ', [MUIM_Notify, MUIA_Menuitem_Trigger, MUIV_EveryTime, app, 2, MUIM_Application_ReturnID, ')
+    ENDSELECT
+    put(fh, 'self.idBase + ')
+    putNum(fh, evCounter)
+    put(fh, '])\n')
   ENDIF
   ch := c.firstChild
   WHILE ch
@@ -728,13 +747,17 @@ PROC emitConnect(fh, c: PTR TO component)
 ENDPROC
 
 PROC emitDispatch(fh, c: PTR TO component)
-  DEF ch: PTR TO component, kind
-  kind := c.kind
-  IF c.handler
-    IF eventName(kind)
-      evCounter++
-      put(fh, '    CASE ')
-      putNum(fh, evCounter)
+  DEF ch: PTR TO component
+  IF hasEvent(c)
+    evCounter++
+    put(fh, '    CASE ')
+    putNum(fh, evCounter)
+    IF c.kind = CK_WINDOW
+      -> the handler may set self.keepOpen to stop the window closing
+      put(fh, '\n      self.keepOpen := FALSE\n      self.')
+      put(fh, c.handler)
+      put(fh, '()\n      IF self.keepOpen = FALSE THEN self.closeWindow()\n')
+    ELSE
       put(fh, '\n      self.')
       put(fh, c.handler)
       put(fh, '()\n')
@@ -743,6 +766,48 @@ PROC emitDispatch(fh, c: PTR TO component)
   ch := c.firstChild
   WHILE ch
     emitDispatch(fh, ch)
+    ch := ch.next
+  ENDWHILE
+ENDPROC
+
+-> What each form does with its timers, and those of the frames it uses:
+-> mode 0 = call the handler of each timer that has gone off, 1 = the signals to wait
+-> for, 2 = give the timers back
+PROC emitTimerWalk(fh, c: PTR TO component, mode)
+  DEF ch: PTR TO component
+  IF c.kind = CK_TIMER
+    SELECT mode
+      CASE 0
+        put(fh, '  IF self.')
+        put(fh, c.name)
+        put(fh, '.fired()\n')
+        IF c.handler
+          put(fh, '    self.')
+          put(fh, c.handler)
+          put(fh, '()\n')
+        ENDIF
+        put(fh, '  ENDIF\n')
+      CASE 1
+        put(fh, '  m := m OR self.')
+        put(fh, c.name)
+        put(fh, '.sigMask()\n')
+      CASE 2
+        put(fh, '  self.')
+        put(fh, c.name)
+        put(fh, '.release()\n')
+    ENDSELECT
+  ELSEIF c.kind = CK_USE
+    put(fh, '  ')
+    IF mode = 1 THEN put(fh, 'm := m OR ')
+    put(fh, 'self.')
+    put(fh, c.name)
+    IF mode = 0 THEN put(fh, '.poll()\n')
+    IF mode = 1 THEN put(fh, '.timerMask()\n')
+    IF mode = 2 THEN put(fh, '.releaseTimers()\n')
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    emitTimerWalk(fh, ch, mode)
     ch := ch.next
   ENDWHILE
 ENDPROC
@@ -765,9 +830,7 @@ ENDPROC
 PROC countEvents(c: PTR TO component)
   DEF ch: PTR TO component, n
   n := 0
-  IF c.handler
-    IF eventName(c.kind) THEN n := 1
-  ENDIF
+  IF hasEvent(c) THEN n := 1
   ch := c.firstChild
   WHILE ch
     n := n + countEvents(ch)
@@ -781,6 +844,7 @@ PROC genObject(fh, win: PTR TO component)
   put(fh, 'OBJECT t')
   put(fh, win.name)
   put(fh, '\n  handle\n  idBase\n')
+  IF win.kind = CK_WINDOW THEN put(fh, '  keepOpen\n')
   declareLeaves(fh, win)
   put(fh, 'ENDOBJECT\n\n')
 ENDPROC
@@ -815,8 +879,39 @@ PROC genProcs(fh, win: PTR TO component)
   emitForwards(fh, win)
   put(fh, 'ENDPROC\n\n')
 
+  -> timers: the program loop calls poll() and waits for timerMask()
+  put(fh, 'PROC poll() OF t')
+  put(fh, win.name)
+  put(fh, '\n')
+  emitTimerWalk(fh, win, 0)
+  put(fh, 'ENDPROC\n\n')
+  put(fh, 'PROC timerMask() OF t')
+  put(fh, win.name)
+  put(fh, '\n  DEF m\n  m := 0\n')
+  emitTimerWalk(fh, win, 1)
+  put(fh, 'ENDPROC m\n\n')
+  put(fh, 'PROC releaseTimers() OF t')
+  put(fh, win.name)
+  put(fh, '\n')
+  emitTimerWalk(fh, win, 2)
+  put(fh, 'ENDPROC\n\n')
+
   -> only a window can be shown and hidden
   IF win.kind = CK_WINDOW
+    -> what closing the window does: the main form ends the program, another just hides
+    put(fh, 'PROC closeWindow() OF t')
+    put(fh, win.name)
+    put(fh, '\n')
+    IF StrLen(win.name) = StrLen(genMainName)
+      IF StrCmp(win.name, genMainName, ALL)
+        put(fh, '  doMethodA(delpheApp, [MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])\n')
+      ELSE
+        put(fh, '  set(self.handle, MUIA_Window_Open, FALSE)\n')
+      ENDIF
+    ELSE
+      put(fh, '  set(self.handle, MUIA_Window_Open, FALSE)\n')
+    ENDIF
+    put(fh, 'ENDPROC\n\n')
     put(fh, 'PROC show() OF t')
     put(fh, win.name)
     put(fh, '\n  set(self.handle, MUIA_Window_Open, MUI_TRUE)\nENDPROC\n\n')
@@ -987,6 +1082,11 @@ PROC genRuntimeTypes(fh, forms: PTR TO LONG, n)
     put(fh, '  drawer: PTR TO CHAR   -> an E-string: change it with StrCopy()\n')
     put(fh, '  path: PTR TO CHAR     -> the chosen file, with its drawer\n  save\nENDOBJECT\n\n')
   ENDIF
+  IF anyUses(forms, n, CK_TIMER)
+    put(fh, 'MODULE \adevices/timer\a, \aexec/io\a, \aexec/ports\a\n\n')
+    put(fh, '-> a timer: its OnTimer handler runs every interval; start() and stop() control it\n')
+    put(fh, 'OBJECT tTimer\n  port: PTR TO mp\n  req: PTR TO timerequest\n  interval\n  active\n  pending\nENDOBJECT\n\n')
+  ENDIF
   IF anyUses(forms, n, CK_MSGDLG)
     put(fh, '-> a message requester: call execute(); it returns the number of the button chosen\n')
     put(fh, 'OBJECT tMessageDialog\n  text: PTR TO CHAR\n  buttons: PTR TO CHAR\n  windowTitle: PTR TO CHAR\nENDOBJECT\n\n')
@@ -1009,6 +1109,27 @@ PROC genRuntimeProcs(fh, forms: PTR TO LONG, n)
     put(fh, '        IF n > 0\n          IF (self.path[n - 1] <> \a:\a) AND (self.path[n - 1] <> \a/\a) THEN StrAdd(self.path, \a/\a, ALL)\n        ENDIF\n')
     put(fh, '        StrAdd(self.path, req.file, ALL)\n        ok := TRUE\n      ENDIF\n      FreeAslRequest(req)\n    ENDIF\n')
     put(fh, '    CloseLibrary(aslbase)\n  ENDIF\nENDPROC ok\n\n')
+  ENDIF
+  IF anyUses(forms, n, CK_TIMER)
+    put(fh, 'PROC delpheTimer(ms, active)\n  DEF t: PTR TO tTimer\n  NEW t\n  t.interval := ms\n')
+    put(fh, '  t.port := CreateMsgPort()\n  IF t.port\n    t.req := CreateIORequest(t.port, SIZEOF timerequest)\n')
+    put(fh, '    IF t.req\n      IF OpenDevice(TIMERNAME, UNIT_VBLANK, t.req, 0) <> 0\n')
+    put(fh, '        DeleteIORequest(t.req)\n        t.req := NIL\n      ENDIF\n    ENDIF\n  ENDIF\n')
+    put(fh, '  IF t.req\n    IF active THEN t.start()\n  ENDIF\nENDPROC t\n\n')
+    put(fh, 'PROC arm() OF tTimer\n  self.req.io.command := TR_ADDREQUEST\n')
+    put(fh, '  self.req.time.secs := Div(self.interval, 1000)\n  self.req.time.micro := Mul(Mod(self.interval, 1000), 1000)\n')
+    put(fh, '  SendIO(self.req)\n  self.pending := TRUE\nENDPROC\n\n')
+    put(fh, 'PROC start() OF tTimer\n  IF self.req = NIL THEN RETURN\n  self.active := TRUE\n')
+    put(fh, '  IF self.pending = FALSE THEN self.arm()\nENDPROC\n\n')
+    put(fh, 'PROC stop() OF tTimer\n  self.active := FALSE\n  IF self.pending\n')
+    put(fh, '    IF CheckIO(self.req) = NIL THEN AbortIO(self.req)\n    WaitIO(self.req)\n    self.pending := FALSE\n  ENDIF\nENDPROC\n\n')
+    put(fh, '-> TRUE once each time the interval has passed\n')
+    put(fh, 'PROC fired() OF tTimer\n  IF self.req = NIL THEN RETURN FALSE\n  IF self.pending = FALSE THEN RETURN FALSE\n')
+    put(fh, '  IF CheckIO(self.req) = NIL THEN RETURN FALSE\n  WaitIO(self.req)\n  self.pending := FALSE\n')
+    put(fh, '  IF self.active THEN self.arm()\nENDPROC TRUE\n\n')
+    put(fh, 'PROC sigMask() OF tTimer\n  IF self.port = NIL THEN RETURN 0\nENDPROC Shl(1, self.port.sigbit)\n\n')
+    put(fh, 'PROC release() OF tTimer\n  IF self.req = NIL THEN RETURN\n  self.stop()\n  CloseDevice(self.req)\n')
+    put(fh, '  DeleteIORequest(self.req)\n  self.req := NIL\n  DeleteMsgPort(self.port)\n  self.port := NIL\nENDPROC\n\n')
   ENDIF
   IF anyUses(forms, n, CK_MSGDLG)
     put(fh, 'PROC delpheMessageDialog(text, buttons, windowTitle)\n  DEF d: PTR TO tMessageDialog\n  NEW d\n')
@@ -1124,6 +1245,21 @@ ENDPROC
 -> The orphaned handlers found by the last generation, or NIL if there were none
 PROC orphanReport() IS orphanList
 
+-> TRUE if the user's main() still has its own event loop, but a form uses window events or
+-> timers, which only the generated loop (delpheRun) handles
+PROC oldLoopReport() IS oldLoop
+
+-> Does any window have an OnClose handler?
+PROC anyWindowHandler(forms: PTR TO LONG, n)
+  DEF i, f: PTR TO component
+  FOR i := 0 TO n - 1
+    f := forms[i]
+    IF f.kind = CK_WINDOW
+      IF f.handler THEN RETURN TRUE
+    ENDIF
+  ENDFOR
+ENDPROC FALSE
+
 /*
 ** Creates the user's program file, or brings it up to date: handler stubs are
 ** appended for handlers it does not define yet, and an old-style file (with the
@@ -1136,6 +1272,7 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
 
   appended := String(30000)
   orphanList := NIL
+  oldLoop := FALSE
   buf, len := readAll(path)
 
   IF buf = NIL
@@ -1166,6 +1303,10 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
   ENDIF
 
   scanOrphans(cur, forms, n)
+  oldLoop := FALSE
+  IF InStr(cur, 'delpheRun()') = -1
+    IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN oldLoop := TRUE
+  ENDIF
   FOR i := 0 TO n - 1
     win := forms[i]
     collectStubs(win, cur, appended, win)
@@ -1183,22 +1324,7 @@ ENDPROC GEN_OK
 -> Writes the generated file (path.gen.e) and updates the user's file. Returns
 -> GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
 PROC generateFile(path, win: PTR TO component)
-  DEF gp, fh, res, all, i
-  gp := genPath(path)
-  all := withFrames(path, [win], 1)
-  fh := openGenFile(gp)
-  IF fh = NIL THEN RETURN GEN_WRITEFAIL
-  genConstants(fh, all, ListLen(all))
-  genRuntimeTypes(fh, all, ListLen(all))
-  genRuntimeProcs(fh, all, ListLen(all))
-  -> the frames the form uses come first, each with its object and procedures
-  FOR i := 1 TO ListLen(all) - 1
-    genRegion(fh, ListItem(all, i), NIL, 0)
-  ENDFOR
-  genRegion(fh, win, NIL, 0)
-  Close(fh)
-  res := syncUserFile(path, NIL, all, ListLen(all))
-ENDPROC res
+ENDPROC generateProject(path, win.name, [win], 1)
 
 /*
 ** Writes the program the compiler gets: the user's file with the generated file
@@ -1326,18 +1452,21 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
     put(fh, '.connect(app)\n')
   ENDFOR
   put(fh, '\n')
-  -> closing the first (main) form quits; the others just hide
+  -> closing the first (main) form quits; the others just hide. A form with an
+  -> OnClose handler does that itself, after the handler has run (closeWindow).
   FOR i := 0 TO n - 1
     win := forms[i]
-    put(fh, '  doMethodA(fm')
-    put(fh, win.name)
-    put(fh, '.handle, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,\n')
-    IF i = 0
-      put(fh, '    app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])\n')
-    ELSE
-      put(fh, '    fm')
+    IF win.handler = NIL
+      put(fh, '  doMethodA(fm')
       put(fh, win.name)
-      put(fh, '.handle, 3, MUIM_Set, MUIA_Window_Open, FALSE])\n')
+      put(fh, '.handle, [MUIM_Notify, MUIA_Window_CloseRequest, MUI_TRUE,\n')
+      IF i = 0
+        put(fh, '    app, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit])\n')
+      ELSE
+        put(fh, '    fm')
+        put(fh, win.name)
+        put(fh, '.handle, 3, MUIM_Set, MUIA_Window_Open, FALSE])\n')
+      ENDIF
     ENDIF
   ENDFOR
 
@@ -1364,7 +1493,22 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
     put(fh, win.name)
     put(fh, '.handleEvent(id)\n')
   ENDFOR
-  put(fh, '    ENDIF\n    IF running AND sigs THEN sigs := Wait(sigs)\n  ENDWHILE\n\n')
+  put(fh, '    ENDIF\n    IF running\n')
+  -> timers that have gone off run their handlers; then wait for MUI or a timer
+  FOR i := 0 TO n - 1
+    win := forms[i]
+    put(fh, '      fm')
+    put(fh, win.name)
+    put(fh, '.poll()\n')
+  ENDFOR
+  put(fh, '      IF sigs THEN sigs := Wait(sigs')
+  FOR i := 0 TO n - 1
+    win := forms[i]
+    put(fh, ' OR fm')
+    put(fh, win.name)
+    put(fh, '.timerMask()')
+  ENDFOR
+  put(fh, ')\n    ENDIF\n  ENDWHILE\n\n')
   FOR i := 0 TO n - 1
     win := forms[i]
     put(fh, '  fm')
@@ -1372,6 +1516,14 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
     put(fh, '.hide()\n')
   ENDFOR
   put(fh, '\nEXCEPT DO\n')
+  FOR i := 0 TO n - 1
+    win := forms[i]
+    put(fh, '  IF fm')
+    put(fh, win.name)
+    put(fh, ' THEN fm')
+    put(fh, win.name)
+    put(fh, '.releaseTimers()\n')
+  ENDFOR
   put(fh, '  IF app THEN Mui_DisposeObject(app)\n')
   put(fh, '  IF muimasterbase THEN CloseLibrary(muimasterbase)\n')
   put(fh, '  IF exception THEN WriteF(\a\\s\\n\a, exception)\n')
@@ -1392,6 +1544,9 @@ ENDPROC
 */
 PROC generateProject(path, projName, forms: PTR TO LONG, n)
   DEF fh, i, win: PTR TO component, tag, all, total
+
+  win := forms[0]
+  genMainName := win.name
 
   all := withFrames(path, forms, n)
   total := ListLen(all)

@@ -65,6 +65,7 @@ source keeps the compiled program independent of the IDE.
 | Memo    | initial text                |                 | TextEditor.mcc with its scrollbar; needs that class |
 | Utilities | (none)                    |                 | the window's last child; holds the non-visual components below |
 | FileDialog | requester title        |                 | non-visual; `:arg` = pattern, `:save` = save mode; `execute()` |
+| Timer   | (none)                      | `OnTimer`       | non-visual; `:value` = interval in ms, `:disabled` = starts stopped; `start()`, `stop()` |
 | MenuStrip | (none)                   |                 | non-visual; the window's menu bar, one per window; holds Menus |
 | Menu    | menu title                  |                 | holds MenuItems |
 | MenuItem | item title (`-` = separator) | `OnSelect`    | `:arg` = shortcut key, `:save` = checkable, `:disabled`; holds MenuItems for a submenu |
@@ -89,8 +90,20 @@ message dialog's buttons.
 **Window properties.** `windowId` gives `MUIA_Window_ID` (MUI remembers a window's place under it, so
 the old fixed `"MAIN"` made every form of a project share one). Width and height reuse the
 fixed-size fields, `:center` is `MUIV_Window_LeftEdge_Centered` and `TopEdge`, and `:open` makes
-`delpheRun` call `show()` on that form after the main one. Window events (OnClose) and a timer
-need the generated code to own the main loop, and are not done yet.
+`delpheRun` call `show()` on that form after the main one. Window events and timers are
+below.
+
+**The generated loop.** A single form is generated as a program of one form: the `.gen.e` has
+the `fm<Name>` globals and `delpheRun()`, and the user file's `main()` just calls it. The loop
+calls every form's `poll()` after each `NewInput` and waits on MUI's signals plus every form's
+`timerMask()`. Each form and frame has `poll`, `timerMask` and `releaseTimers`, passed on to the
+frames it uses. A timer is a small helper object over timer.device (`tTimer`, carried by the
+`.gen.e` like the dialogs): `fired()` is true once per interval, and `poll()` runs the handler.
+A window with an `OnClose` handler is notified with a return id instead of the direct quit or
+hide; the dispatch clears `keepOpen`, runs the handler, and calls `closeWindow()` unless it was
+set (the main form tells the application to quit, another form hides). `oldLoopReport` says
+when the user's `main()` has its own loop (it lacks `delpheRun()`) while the form needs the
+generated one.
 
 **Menus.** A `MenuStrip` is a non-visual component in the Utilities branch; `allowedChild`
 in FormModel.e says what may go under what (strip > menu > item > item, and nothing else), and

@@ -53,7 +53,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     editor, slider, txtCodePath,
     logEditor, logSlider,
-    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, lblArg, chkSave, chkVert, chkCenter, chkOpen, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, lblArg, lblValue, chkSave, chkVert, chkCenter, chkOpen, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
@@ -163,7 +163,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse, isItem, isWin
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse, isItem, isWin, isTimer
   w := 0
   fx := 0
   fy := 0
@@ -180,6 +180,7 @@ PROC showProps(c: PTR TO component)
   isUse := FALSE
   isItem := FALSE
   isWin := FALSE
+  isTimer := FALSE
   isFile := FALSE
   ar := ''
   fi := 0
@@ -193,12 +194,13 @@ PROC showProps(c: PTR TO component)
     mx := c.maxV
     vl := c.value
     IF flags AND PF_FONT THEN fi := c.fontIdx
-    IF isUtilityKind(c.kind) AND (c.kind <> CK_MENUSTRIP) THEN isDlg := TRUE
+    IF c.kind = CK_TIMER THEN isTimer := TRUE
+    IF isUtilityKind(c.kind) AND (c.kind <> CK_MENUSTRIP) AND (c.kind <> CK_TIMER) THEN isDlg := TRUE
     IF c.kind = CK_MENUITEM THEN isItem := TRUE
     IF c.kind = CK_WINDOW THEN isWin := TRUE
     IF c.kind = CK_FILEDLG THEN isFile := TRUE
     IF c.kind = CK_USE THEN isUse := TRUE
-    IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) AND (isMenuKind(c.kind) = FALSE) THEN usable := TRUE
+    IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) AND (isMenuKind(c.kind) = FALSE) AND (isTimer = FALSE) THEN usable := TRUE
     IF isContainer(c.kind) AND (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isMenuKind(c.kind) = FALSE) THEN isGroup := TRUE
     IF (flags AND PF_ARG) AND c.arg THEN ar := c.arg
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
@@ -232,7 +234,7 @@ PROC showProps(c: PTR TO component)
   setEnabled(strFixW, usable OR isWin)
   setEnabled(strFixH, usable OR isWin)
   setEnabled(strHint, usable)
-  setEnabled(chkDisabled, usable OR isItem)
+  setEnabled(chkDisabled, usable OR isItem OR isTimer)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
   setEnabled(strArg, isDlg OR isUse OR isItem OR isWin)
@@ -258,7 +260,14 @@ PROC showProps(c: PTR TO component)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
   setEnabled(strMax, isSlider OR isGauge)
-  setEnabled(strValue, isSlider OR isGauge OR isCols)
+  setEnabled(strValue, isSlider OR isGauge OR isCols OR isTimer)
+  IF isTimer
+    set(lblValue, MUIA_Text_Contents, 'Interval (ms):')
+  ELSEIF isCols
+    set(lblValue, MUIA_Text_Contents, 'Columns:')
+  ELSE
+    set(lblValue, MUIA_Text_Contents, 'Value:')
+  ENDIF
   setEnabled(btnEntries, isItems)
 ENDPROC
 
@@ -634,11 +643,25 @@ ENDPROC
 -> The text for the log pane: a warning about the orphaned handlers, then more
 PROC logWithOrphans(more)
   DEF s
-  s := String(StrLen(orphanNote) + StrLen(more) + 250)
-  StrCopy(s, 'Warning: your code has handlers of forms or frames that no longer exist, and the compiler will stop at them. Delete:\n  ', ALL)
-  StrAdd(s, orphanNote, ALL)
-  StrAdd(s, '\n\n', ALL)
+  s := String(StrLen(orphanNote) + StrLen(more) + 20)
+  StrCopy(s, orphanNote, ALL)
   StrAdd(s, more, ALL)
+ENDPROC s
+
+-> The warnings of the last generation, as text for the log pane, or NIL if there are none
+PROC buildWarnings()
+  DEF s, o
+  s := String(900)
+  o := orphanReport()
+  IF o
+    StrAdd(s, 'Warning: your code has handlers of forms or frames that no longer exist, and the compiler will stop at them. Delete:\n  ', ALL)
+    StrAdd(s, o, ALL)
+    StrAdd(s, '\n\n', ALL)
+  ENDIF
+  IF oldLoopReport()
+    StrAdd(s, 'Warning: your main() has its own event loop, so window close events and timers will not run. Replace its body with a call to the generated loop:\n  PROC main()\n    delpheRun()\n  ENDPROC\n\n', ALL)
+  ENDIF
+  IF StrLen(s) = 0 THEN RETURN NIL
 ENDPROC s
 
 -> Saves the editor, regenerates the marked region (adding handler stubs)
@@ -666,10 +689,10 @@ PROC regenerate()
     status('That file has no DELPHE GENERATED CODE line: move it aside first')
   ELSE
     loadCode()
-    orphanNote := orphanReport()
+    orphanNote := buildWarnings()
     IF orphanNote
       set(logEditor, MUIA_TextEditor_Contents, logWithOrphans(''))
-      status('Warning: handlers of forms or frames that no longer exist (see the log below the code)')
+      status('Warning: see the log below the code')
     ENDIF
   ENDIF
 ENDPROC res
@@ -1484,11 +1507,11 @@ PROC doAdd(idx)
     nm := uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
                                'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
                                'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg',
-                               'frm', 'use', 'mstrip', 'mnu', 'mni', 'bal'], idx))
+                               'frm', 'use', 'mstrip', 'mnu', 'mni', 'bal', 'tmr'], idx))
     ttl := ListItem([NIL, NIL, 'Button', 'Label', '', '',
                      'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
                      'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?',
-                     NIL, NIL, NIL, 'Menu', 'Item', NIL], idx)
+                     NIL, NIL, NIL, 'Menu', 'Item', NIL, NIL], idx)
   ENDIF
   c := newComponent(kind, nm, ttl)
   pushUndo()
@@ -1514,6 +1537,11 @@ PROC doAdd(idx)
   IF kind = CK_MSGDLG
     c.arg := 'OK|Cancel'
     c.propFlags := c.propFlags OR PF_ARG
+  ENDIF
+  -> a timer goes off every second until told otherwise
+  IF kind = CK_TIMER
+    c.value := 1000
+    c.propFlags := c.propFlags OR PF_VALUE
   ENDIF
   -> each child of a Pages component is a page: start with two
   IF kind = CK_PAGES
@@ -2107,7 +2135,7 @@ PROC makeToolbars()
   palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER, CK_BALANCE, CK_USE]
   palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
   palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
-  palKinds4 := [CK_FILEDLG, CK_MSGDLG, CK_MENUSTRIP, CK_MENU, CK_MENUITEM]
+  palKinds4 := [CK_FILEDLG, CK_MSGDLG, CK_MENUSTRIP, CK_MENU, CK_MENUITEM, CK_TIMER]
 
   layoutDef := buildBank([
     Toolbar_HintButton(0, 'Add a vertical group', NIL),
@@ -2163,6 +2191,7 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Add a menu strip: holds the window menus (one per window)', NIL),
     Toolbar_HintButton(0, 'Add a menu to the menu strip', NIL),
     Toolbar_HintButton(0, 'Add a menu item (title - makes a separator; the Option field is its shortcut key)', NIL),
+    Toolbar_HintButton(0, 'Add a timer (non-visual: OnTimer runs every interval)', NIL),
     Toolbar_End])
   utilBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
@@ -2274,7 +2303,12 @@ PROC makeInspectorPanel()
             Child, strMin := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Maximum:'),
             Child, strMax := StringObject, StringFrame, MUIA_String_Contents, '', End,
-            Child, Label2('Value/columns:'),
+            Child, lblValue := TextObject,
+              MUIA_Text_PreParse, '\er',
+              MUIA_Text_Contents, 'Value:',
+              MUIA_FixWidthTxt, 'Interval (ms): ',
+              MUIA_Weight, 0,
+            End,
             Child, strValue := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Hint:'),
             Child, strHint := StringObject, StringFrame, MUIA_String_Contents, '', End,
