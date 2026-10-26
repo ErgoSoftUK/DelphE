@@ -369,6 +369,8 @@ PROC commitProps()
     -> a window ID is four characters
     IF StrLen(a) > 4
       SetStr(a, 4)
+      -> show what was kept
+      set(strArg, MUIA_String_Contents, a)
       status('A window ID is four characters: shortened')
     ENDIF
     get(chkCenter, MUIA_Selected, {sel})

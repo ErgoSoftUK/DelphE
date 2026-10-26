@@ -1,4 +1,4 @@
-Window DelphEMain "DelphE Designer"
+Window DelphEMain "DelphE Designer" :arg="TEST"
   VGroup root
     Text lblToolbar "[needs Toolbar.mcc: actions toolbar]" :weight=0
     HGroup body
