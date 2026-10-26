@@ -19,7 +19,7 @@ MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util'
 
 CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
-DEF evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
+DEF orphanList, evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
 
 PROC put(fh, s) IS Write(fh, s, StrLen(s))
 
@@ -967,6 +967,58 @@ PROC stripRegions(buf, len)
   out[o] := 0
 ENDPROC out, o
 
+PROC isIdentCh(c) IS ((c >= "A") AND (c <= "Z")) OR ((c >= "a") AND (c <= "z")) OR ((c >= "0") AND (c <= "9")) OR (c = "_")
+
+-> The handlers in the user's text that belong to a form or frame that no longer
+-> exists: "PROC name() OF tType" where tType is none of these forms and frames, is
+-> not one of the helper types and is not an object the user defined. Fills
+-> orphanList with them, comma separated.
+PROC scanOrphans(buf: PTR TO CHAR, forms: PTR TO LONG, n)
+  DEF p, q, tn, start, i, known, typeName, name, pat, win: PTR TO component, count
+  orphanList := String(300)
+  count := 0
+  p := InStr(buf, '() OF t')
+  WHILE p <> -1
+    start := p
+    WHILE (start > 0) AND isIdentCh(buf[start - 1]) DO start--
+    q := p + 7
+    tn := q
+    WHILE isIdentCh(buf[tn]) DO tn++
+    typeName := String(tn - q + 1)
+    IF tn > q THEN MidStr(typeName, buf, q, tn - q)
+    known := FALSE
+    FOR i := 0 TO n - 1
+      win := forms[i]
+      IF StrLen(win.name) = StrLen(typeName)
+        IF StrCmp(win.name, typeName, ALL) THEN known := TRUE
+      ENDIF
+    ENDFOR
+    IF StrCmp(typeName, 'FileDialog', ALL) AND (StrLen(typeName) = 10) THEN known := TRUE
+    IF StrCmp(typeName, 'MessageDialog', ALL) AND (StrLen(typeName) = 13) THEN known := TRUE
+    IF known = FALSE
+      pat := String(StrLen(typeName) + 12)
+      StrCopy(pat, 'OBJECT t', ALL)
+      StrAdd(pat, typeName, ALL)
+      IF InStr(buf, pat) <> -1 THEN known := TRUE
+    ENDIF
+    IF known = FALSE
+      count++
+      IF count > 1 THEN StrAdd(orphanList, ', ', ALL)
+      name := String(p - start + 1)
+      IF p > start THEN MidStr(name, buf, start, p - start)
+      StrAdd(orphanList, name, ALL)
+      StrAdd(orphanList, ' (t', ALL)
+      StrAdd(orphanList, typeName, ALL)
+      StrAdd(orphanList, ')', ALL)
+    ENDIF
+    p := InStr(buf, '() OF t', tn)
+  ENDWHILE
+  IF count = 0 THEN orphanList := NIL
+ENDPROC
+
+-> The orphaned handlers found by the last generation, or NIL if there were none
+PROC orphanReport() IS orphanList
+
 /*
 ** Creates the user's program file, or brings it up to date: handler stubs are
 ** appended for handlers it does not define yet, and an old-style file (with the
@@ -978,6 +1030,7 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
   DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended, old
 
   appended := String(30000)
+  orphanList := NIL
   buf, len := readAll(path)
 
   IF buf = NIL
@@ -1007,6 +1060,7 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
     RETURN GEN_NOMARKERS
   ENDIF
 
+  scanOrphans(cur, forms, n)
   FOR i := 0 TO n - 1
     win := forms[i]
     collectStubs(win, cur, appended, win)

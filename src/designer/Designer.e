@@ -36,6 +36,9 @@ DEF projectPath, projectName, projCount, projCur, cycForms, cycHolder,
 
 DEF treeMcc: PTR TO mui_customclass
 
+-> handlers in the user's code of forms or frames that no longer exist (or NIL)
+DEF orphanNote
+
 -> undo and redo: copies of the whole form, newest last, with the position of the
 -> selected component so it can be selected again
 DEF undoTrees[40]: ARRAY OF LONG, undoSel[40]: ARRAY OF LONG,
@@ -585,10 +588,21 @@ PROC saveCode()
   FreeVec(text)
 ENDPROC
 
+-> The text for the log pane: a warning about the orphaned handlers, then more
+PROC logWithOrphans(more)
+  DEF s
+  s := String(StrLen(orphanNote) + StrLen(more) + 250)
+  StrCopy(s, 'Warning: your code has handlers of forms or frames that no longer exist, and the compiler will stop at them. Delete:\n  ', ALL)
+  StrAdd(s, orphanNote, ALL)
+  StrAdd(s, '\n\n', ALL)
+  StrAdd(s, more, ALL)
+ENDPROC s
+
 -> Saves the editor, regenerates the marked region (adding handler stubs)
 -> and reloads the editor. Returns a GEN_ code.
 PROC regenerate()
   DEF path, res
+  orphanNote := NIL
   commitEdits()
   saveCode()
   IF (form.kind = CK_FRAME) AND (projectPath = NIL)
@@ -609,11 +623,18 @@ PROC regenerate()
     status('That file has no DELPHE GENERATED CODE line: move it aside first')
   ELSE
     loadCode()
+    orphanNote := orphanReport()
+    IF orphanNote
+      set(logEditor, MUIA_TextEditor_Contents, logWithOrphans(''))
+      status('Warning: handlers of forms or frames that no longer exist (see the log below the code)')
+    ENDIF
   ENDIF
 ENDPROC res
 
 PROC doGenerate()
-  IF regenerate() = GEN_OK THEN status('Generated: see the Code page')
+  IF regenerate() = GEN_OK
+    IF orphanNote = NIL THEN status('Generated: see the Code page')
+  ENDIF
 ENDPROC
 
 -> Shows the Code page with the cursor on the given component's handler
@@ -1168,7 +1189,11 @@ PROC compileCode()
     RETURN FALSE
   ENDIF
   clean := cleanOutput(buf, len)
-  set(logEditor, MUIA_TextEditor_Contents, clean)
+  IF orphanNote
+    set(logEditor, MUIA_TextEditor_Contents, logWithOrphans(clean))
+  ELSE
+    set(logEditor, MUIA_TextEditor_Contents, clean)
+  ENDIF
 
   ok := (InStr(clean, 'ERROR:') = -1) AND (InStr(clean, 'no errors') <> -1)
   IF ok

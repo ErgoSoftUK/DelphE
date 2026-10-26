@@ -38,6 +38,9 @@ source.
 - **Code generation:** the form becomes `<Name>.gen.e`, which is rewritten every time,
   and a separate `<Name>.e` that is all yours: the generated code is inserted into it
   when you compile, so the editor never shows it. New handlers get a stub appended.
+- **Orphaned handlers:** when you generate or build, DelphE lists any `PROC x() OF tSomething` in your
+  code whose form or frame no longer exists (in the log pane), instead of leaving you with a
+  puzzling compiler error.
 - **Component tree:** double-click a component to jump to its handler in the code (a handler
   name is made for it first if it has none).
 - **Code editor** (TextEditor.mcc) with syntax colours, Build and Run, compiler output, and
