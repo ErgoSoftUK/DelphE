@@ -33,6 +33,9 @@ OBJECT sections
   codeStart                 -> line of the file where the code text starts
 ENDOBJECT
 
+-> The comment that opens the code part; the code editor starts after it
+PROC codeMark() IS '/*** your code ***/'
+
 -> A copy of buf from index a up to (not including) b, as zero-terminated memory
 PROC copyRegion(buf: PTR TO CHAR, a, b)
   DEF out: PTR TO CHAR, n
@@ -80,7 +83,7 @@ ENDPROC buf[p] = ","
 
 -> Cuts the file text into its three parts
 PROC splitSections(buf: PTR TO CHAR, len)
-  DEF s: PTR TO sections, m, mStart, afterM, g, gStart, gAfter, pos, modEnd, cont, le, e
+  DEF s: PTR TO sections, m, mStart, afterM, g, gStart, gAfter, pos, modEnd, cont, le, e, cm
   NEW s
   m := InStr(buf, userMark())
   IF m = -1
@@ -132,6 +135,9 @@ PROC splitSections(buf: PTR TO CHAR, len)
     s.globLen := mStart - pos
     s.globStart := linesBefore(buf, pos)
   ENDIF
+  -> the code starts after the "your code" comment, if there is one
+  cm := InStr(buf, codeMark(), afterM)
+  IF cm <> -1 THEN afterM := afterLine(buf, cm, len)
   s.codeText := copyRegion(buf, afterM, len)
   s.codeLen := len - afterM
   s.codeStart := linesBefore(buf, afterM)
@@ -165,7 +171,7 @@ PROC joinSections(modText: PTR TO CHAR, globText: PTR TO CHAR, codeText: PTR TO 
   DEF out: PTR TO CHAR, o, gm, um, n
   gm := globalsMarkLine()
   um := userMarkLine()
-  n := StrLen(modText) + StrLen(globText) + StrLen(codeText) + StrLen(gm) + StrLen(um) + 8
+  n := StrLen(modText) + StrLen(globText) + StrLen(codeText) + StrLen(gm) + StrLen(um) + 32
   out := AllocVec(n, MEMF_PUBLIC OR MEMF_CLEAR)
   IF out = NIL THEN RETURN NIL, 0
   o := 0
@@ -173,7 +179,9 @@ PROC joinSections(modText: PTR TO CHAR, globText: PTR TO CHAR, codeText: PTR TO 
   o := putSection(out, o, gm)
   o := putSection(out, o, globText)
   o := putSection(out, o, um)
-  -> the code is written as it is: it starts with the line after the marker
+  -> the "your code" comment, then the code as it is
+  CopyMem('\n/*** your code ***/\n', out + o, 21)
+  o := o + 21
   n := StrLen(codeText)
   IF n > 0
     CopyMem(codeText, out + o, n)

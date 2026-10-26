@@ -27,6 +27,8 @@ source.
   and object types, and the code editor. They are saved as one plain E file; the generated code is
   inserted between the globals and the code, which is why E wants the globals in their own part: every
   global `DEF` has to come before the first `PROC`. Compile errors and Edit jump to the right place.
+  The code editor starts after the `/*** your code ***/` comment, which is kept out of it; the file name
+  of the program is shown at the right of the status line.
 - **Window close and timers:** a window has an `OnClose` event (set a handler on the window in the tree):
   it runs when the close gadget is clicked, and the window then closes (the main form ends the program,
   another form hides) unless the handler sets `self.keepOpen := TRUE`. Your handlers can call

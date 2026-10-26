@@ -638,7 +638,7 @@ PROC loadCode()
     secHas := FALSE
     secGlobStart := 0
     secCodeStart := 0
-    set(txtCodePath, MUIA_Text_Contents, 'No code file yet: Build or Build > Generate code creates it')
+    set(txtCodePath, MUIA_Text_Contents, '(no program file yet)')
   ELSE
     s := splitSections(buf, len)
     -> the editors get the source with syntax colours; saveCode takes them out again
@@ -2328,7 +2328,11 @@ PROC makeMainWindow()
         Child, inspBalance := BalanceObject, End,
         Child, pages,
       End,
-      Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
+      -> the status line, and the program file it belongs to on the right
+      Child, HGroup,
+        Child, txtStatus := TextObject, TextFrame, MUIA_Text_Contents, 'Ready', End,
+        Child, txtCodePath := TextObject, TextFrame, MUIA_Weight, 40, MUIA_Text_Contents, '', End,
+      End,
     End,
   End
 ENDPROC
@@ -2511,7 +2515,6 @@ PROC makeEditorPanel()
       End,
     End,
     Child, VGroup,
-      Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
       -> the modules as one line with a button for the list, the global variables in a
       -> small editor, and the code, all at once
       Child, HGroup,
