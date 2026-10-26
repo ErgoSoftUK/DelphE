@@ -1,5 +1,3 @@
 Project "DelphEself"
 Form "main.mform"
 Form "entries.mform"
-Form "properties.mform"
-Form "events.mform"

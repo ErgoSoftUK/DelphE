@@ -15,62 +15,62 @@ MODULE 'dos/dos', '*FormModel'
 
 CONST MAXDEPTH = 16
 
-PROC put(fh, s) IS Write(fh, s, StrLen(s))
+PROC mput(fh, s) IS Write(fh, s, StrLen(s))
 
 /*** writer ***/
 
-PROC putProp(fh, prefix, n)
+PROC mputProp(fh, prefix, n)
   DEF s
-  put(fh, prefix)
+  mput(fh, prefix)
   s := String(16)
   StringF(s, '\d', n)
-  put(fh, s)
+  mput(fh, s)
   DisposeLink(s)
 ENDPROC
 
 PROC writeForm(fh, c: PTR TO component, depth)
   DEF i, ch: PTR TO component
-  FOR i := 1 TO depth DO put(fh, '  ')
-  put(fh, kindName(c.kind))
-  put(fh, ' ')
-  put(fh, c.name)
+  FOR i := 1 TO depth DO mput(fh, '  ')
+  mput(fh, kindName(c.kind))
+  mput(fh, ' ')
+  mput(fh, c.name)
   IF c.title
-    put(fh, ' \q')
-    put(fh, c.title)
-    put(fh, '\q')
+    mput(fh, ' \q')
+    mput(fh, c.title)
+    mput(fh, '\q')
   ENDIF
   IF c.handler
     IF eventName(c.kind)
-      put(fh, ' @')
-      put(fh, eventName(c.kind))
-      put(fh, '=')
-      put(fh, c.handler)
+      mput(fh, ' @')
+      mput(fh, eventName(c.kind))
+      mput(fh, '=')
+      mput(fh, c.handler)
     ENDIF
   ENDIF
-  IF c.propFlags AND PF_WEIGHT THEN putProp(fh, ' :weight=', c.weight)
-  IF c.propFlags AND PF_FIXW THEN putProp(fh, ' :fixw=', c.fixW)
-  IF c.propFlags AND PF_FIXH THEN putProp(fh, ' :fixh=', c.fixH)
-  IF c.propFlags AND PF_MIN THEN putProp(fh, ' :min=', c.minV)
-  IF c.propFlags AND PF_MAX THEN putProp(fh, ' :max=', c.maxV)
-  IF c.propFlags AND PF_VALUE THEN putProp(fh, ' :value=', c.value)
+  IF c.propFlags AND PF_WEIGHT THEN mputProp(fh, ' :weight=', c.weight)
+  IF c.propFlags AND PF_FIXW THEN mputProp(fh, ' :fixw=', c.fixW)
+  IF c.propFlags AND PF_FIXH THEN mputProp(fh, ' :fixh=', c.fixH)
+  IF c.propFlags AND PF_MIN THEN mputProp(fh, ' :min=', c.minV)
+  IF c.propFlags AND PF_MAX THEN mputProp(fh, ' :max=', c.maxV)
+  IF c.propFlags AND PF_VALUE THEN mputProp(fh, ' :value=', c.value)
   IF c.propFlags AND PF_FONT
-    put(fh, ' :font=')
-    put(fh, fontName(c.fontIdx))
+    mput(fh, ' :font=')
+    mput(fh, fontName(c.fontIdx))
   ENDIF
   IF c.propFlags AND PF_ARG
-    put(fh, ' :arg=\q')
-    put(fh, c.arg)
-    put(fh, '\q')
+    mput(fh, ' :arg=\q')
+    mput(fh, c.arg)
+    mput(fh, '\q')
   ENDIF
-  IF c.propFlags AND PF_SAVE THEN put(fh, ' :save')
-  IF c.propFlags AND PF_DISABLED THEN put(fh, ' :disabled')
-  IF c.propFlags AND PF_FRAME THEN put(fh, ' :frame')
+  IF c.propFlags AND PF_SAVE THEN mput(fh, ' :save')
+  IF c.propFlags AND PF_DISABLED THEN mput(fh, ' :disabled')
+  IF c.propFlags AND PF_FRAME THEN mput(fh, ' :frame')
   IF c.propFlags AND PF_HINT
-    put(fh, ' :hint=\q')
-    put(fh, c.hint)
-    put(fh, '\q')
+    mput(fh, ' :hint=\q')
+    mput(fh, c.hint)
+    mput(fh, '\q')
   ENDIF
-  put(fh, '\n')
+  mput(fh, '\n')
   ch := c.firstChild
   WHILE ch
     writeForm(fh, ch, depth + 1)
@@ -256,7 +256,7 @@ PROC readForm(filename)
         RETURN NIL
       ENDIF
       -> E treats capitalised identifiers as constants; windows get a t prefix
-      IF (kind <> CK_WINDOW) AND ((nameTok[0] < "a") OR (nameTok[0] > "z"))
+      IF (isRootKind(kind) = FALSE) AND ((nameTok[0] < "a") OR (nameTok[0] > "z"))
         WriteF('\s line \d: name "\s" must start with a lowercase letter\n', filename, lineNo, nameTok)
         Close(fh)
         RETURN NIL
@@ -273,8 +273,8 @@ PROC readForm(filename)
         applyProp(c, ListItem(propToks, i))
       ENDFOR
       IF level = 0
-        IF kind <> CK_WINDOW
-          WriteF('\s line \d: the first component must be a Window\n', filename, lineNo)
+        IF isRootKind(kind) = FALSE
+          WriteF('\s line \d: the first component must be a Window or a Frame\n', filename, lineNo)
           Close(fh)
           RETURN NIL
         ENDIF

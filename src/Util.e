@@ -41,7 +41,7 @@ ENDPROC s
 
 -> Shows a file requester for forms. Returns the chosen path as a new E-string, or NIL.
 PROC askFile(hail, save, dir, file)
-ENDPROC askFileEx(hail, save, dir, file, '#?.mform', '.mform')
+ENDPROC askFileEx(hail, save, dir, file, '#?.(mform|mframe)', '.mform')
 
 -> The same for any kind of file: pattern is what the requester lists, ext the
 -> extension the result is given if it has none
@@ -76,7 +76,12 @@ PROC askFileEx(hail, save, dir, file, pattern, ext)
           IF n < el
             StrAdd(path, ext, ALL)
           ELSEIF StrCmp(path + n - el, ext, el) = FALSE
-            StrAdd(path, ext, ALL)
+            -> a form requester also accepts the file of a frame
+            IF (el = 6) AND (n >= 7)
+              IF StrCmp(path + n - 7, '.mframe', 7) = FALSE THEN StrAdd(path, ext, ALL)
+            ELSE
+              StrAdd(path, ext, ALL)
+            ENDIF
           ENDIF
         ENDIF
       ENDIF

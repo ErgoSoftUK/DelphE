@@ -11,7 +11,7 @@ Add-Type -AssemblyName System.Drawing
 
 $strips = [ordered]@{
   'actions'    = 'package', 'box', 'page_2', 'folder', 'disk', 'application_delete', 'eye', 'hammer', 'control_play'
-  'layout'     = 'layout_split_vertical', 'layout_split', 'table', 'application_side_list', 'ui_tab_content', 'arrow_inout'
+  'layout'     = 'layout_split_vertical', 'layout_split', 'table', 'application_side_list', 'ui_tab_content', 'arrow_inout', 'shape_group'
   'input'      = 'tab', 'textfield', 'accept', 'ui_combo_box', 'target', 'ui_slider_2', 'page_white_text'
   'display'    = 'font', 'chart_bar', 'application_view_list'
   'utility'    = 'folder', 'comment'

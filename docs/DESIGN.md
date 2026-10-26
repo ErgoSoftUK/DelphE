@@ -82,6 +82,20 @@ them (`genRuntimeTypes` and `genRuntimeProcs`; in a project the procedures come 
 globals). They need no extra module. The `:arg` property holds a file dialog's pattern or a
 message dialog's buttons.
 
+**Frames.** A frame is a file like a form whose root is `Frame Name` (no window title or
+settings) with one root group; `isRootKind` covers windows and frames. A `Use` component
+(`:arg` = the frame file, relative to the program's folder) puts one inside a form or another
+frame. The preview reads the file and builds the group inline (`buildUse`, folder set with
+`setFrameBase`). `generateFile` and `generateProject` collect every frame a form uses
+(`withFrames`, dependencies first, once each) and write, before the forms, an `OBJECT` and
+`create`, `connect` and `handleEvent` for each, using the same code as for a window but with
+the root group as the object (no `show` or `hide`). A use is a typed field; its instance gets
+its own range of event ids (`idBase := self.idBase + 1000 * n`; forms of a project start at
+100000, 200000, ...), `connect` and `handleEvent` of the parent pass on to it, and a plain
+group around the frame's group carries the use's weight, size and so on. Handlers of a frame
+are methods of its type and live in the user file, with stubs appended as for forms. A frame
+cannot be generated alone; it comes with the forms that use it.
+
 A component can need a MUI class beyond MUI itself (`kindClass` in FormModel.e; today only
 Memo, with `TextEditor.mcc`). The designer checks whether the class file is in `MUI:Libs/MUI/`
 or `LIBS:MUI/` (`classInstalled` in Util.e) and greys out the palette button if not. The

@@ -11,9 +11,16 @@ OPT MODULE
 OPT EXPORT
 OPT PREPROCESS
 
-MODULE 'muimaster', 'libraries/mui', 'utility/tagitem', '*FormModel'
+MODULE 'muimaster', 'libraries/mui', 'utility/tagitem', '*FormModel', '*MForm', '*Util'
 
 CONST TAGROOM = 64
+
+-> the folder that the paths of used frames are relative to; set by the program
+DEF frameBase, useDepth
+
+PROC setFrameBase(dir)
+  frameBase := dir
+ENDPROC
 
 -> TextEditor.mcc's own tags (the Memo component), so that this module needs no import
 CONST TE_CONTENTS = $ad000002, TE_SLIDER = $ad00001a
@@ -189,6 +196,39 @@ PROC buildMemo(c: PTR TO component)
   DisposeLink(tags)
 ENDPROC obj
 
+-> A note shown in place of something that could not be built
+PROC buildNote(text)
+ENDPROC Mui_NewObjectA(MUIC_Text, [MUIA_Frame, MUIV_Frame_Text, MUIA_Text_Contents, text, TAG_DONE, 0])
+
+-> The group of a used frame, read from its file and built inline, inside a plain
+-> group that takes the use's weight, size and so on
+PROC buildUse(c: PTR TO component)
+  DEF path, model: PTR TO component, root: PTR TO component, inner, tags, obj, msg
+  IF (c.propFlags AND PF_ARG) = FALSE THEN RETURN buildNote('[Use: no frame chosen]')
+  IF useDepth > 6 THEN RETURN buildNote('[Use: frames nested too deeply]')
+  IF frameBase THEN path := joinPath(frameBase, c.arg) ELSE path := copyStr(c.arg)
+  model := readForm(path)
+  IF model = NIL
+    msg := String(StrLen(path) + 24)
+    StrCopy(msg, '[frame not found: ', ALL)
+    StrAdd(msg, path, ALL)
+    StrAdd(msg, ']', ALL)
+    RETURN buildNote(msg)
+  ENDIF
+  root := rootOf(model)
+  IF root = NIL THEN RETURN buildNote('[Use: the frame is empty]')
+  useDepth++
+  inner := buildObject(root)
+  useDepth--
+  IF inner = NIL THEN RETURN NIL
+  tags := List(TAGROOM)
+  tags := ListCopy(tags, [TAG_IGNORE, 0])
+  tags := addExtras(tags, c)
+  tags := ListAdd(tags, [MUIA_Group_Child, inner, TAG_DONE, 0])
+  obj := Mui_NewObjectA(MUIC_Group, tags)
+  DisposeLink(tags)
+ENDPROC obj
+
 PROC buildObject(c: PTR TO component)
   DEF kind, t, tags, obj, class, bf
   kind := c.kind
@@ -196,6 +236,7 @@ PROC buildObject(c: PTR TO component)
 
   IF (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) THEN RETURN buildGroup(c)
   IF kind = CK_MEMO THEN RETURN buildMemo(c)
+  IF kind = CK_USE THEN RETURN buildUse(c)
 
   tags := List(TAGROOM)
   tags := ListCopy(tags, [TAG_IGNORE, 0])

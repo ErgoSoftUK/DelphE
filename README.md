@@ -21,6 +21,10 @@ source.
   Cycle, Radio, Slider, Gauge, List, Pages (tabs), Spacer, ColGroup (columns), Scroll
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
+- **Frames:** a reusable group of components in its own `.mframe` file, like a Delphi frame. Name a
+  new file `something.mframe` in the New dialog to make one. A form (or another frame) uses it with
+  the Use button on the Layout tab; the frame is built inline in the preview, and your code reaches
+  its components as `self.propsPanel.edtName`. Frame paths are relative to the program's folder.
 - **Utilities:** non-visual components (a file dialog and a message dialog so far) live in a
   Utilities branch of the window, added from the Utility palette tab. Your code calls them:
   `self.fdlg1.execute()` returns whether a file was chosen (`self.fdlg1.path`), and

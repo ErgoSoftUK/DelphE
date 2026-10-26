@@ -11,7 +11,7 @@ OPT EXPORT
 ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
      CK_CYCLE, CK_RADIO, CK_SLIDER, CK_GAUGE, CK_LIST, CK_PAGES,
      CK_SPACER, CK_COLGROUP, CK_SCROLL, CK_MEMO,
-     CK_UTILS, CK_FILEDLG, CK_MSGDLG
+     CK_UTILS, CK_FILEDLG, CK_MSGDLG, CK_FRAME, CK_USE
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
@@ -53,16 +53,16 @@ PROC addChild(child: PTR TO component) OF component
   self.lastChild := child
 ENDPROC
 
-PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) OR (kind = CK_UTILS)
+PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) OR (kind = CK_UTILS) OR (kind = CK_FRAME)
 
 PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
                                   'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo',
-                                  'Utilities', 'FileDialog', 'MessageDialog'], kind)
+                                  'Utilities', 'FileDialog', 'MessageDialog', 'Frame', 'Use'], kind)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
   DEF k
-  FOR k := CK_WINDOW TO CK_MSGDLG
+  FOR k := CK_WINDOW TO CK_USE
     IF StrLen(s) = StrLen(kindName(k))
       IF StrCmp(kindName(k), s, ALL) THEN RETURN k
     ENDIF
@@ -332,3 +332,7 @@ PROC utilitiesOf(win: PTR TO component)
     ch := ch.next
   ENDWHILE
 ENDPROC NIL
+
+-> The roots of a file: a window (a form) or a frame (a reusable group that forms
+-> and other frames can use). Each holds one root group.
+PROC isRootKind(kind) IS (kind = CK_WINDOW) OR (kind = CK_FRAME)

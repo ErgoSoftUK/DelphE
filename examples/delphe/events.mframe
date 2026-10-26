@@ -1,4 +1,4 @@
-Window EventsPage "Events"
+Frame EventsPanel
   VGroup root
     ColGroup rows :value=2
       Text txtEvent "(no events)" :weight=0

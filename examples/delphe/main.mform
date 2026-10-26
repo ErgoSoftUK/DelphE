@@ -21,9 +21,9 @@ Window DelphEMain "DelphE Designer"
           Button btnDown "Down" @OnClick=btnDownClick
         Pages inspPages "Properties|Events" :weight=60
           VGroup propsPage
-            Text lblProps "(see properties.mform)"
+            Use propsPanel :arg="properties.mframe"
           VGroup eventsPage
-            Text lblEvents "(see events.mform)"
+            Use eventsPanel :arg="events.mframe"
       Pages editorPages "Form|Code" :weight=70
         VGroup formPage
           Text lblSizeNote "[needs vertical sliders and a custom preview host]"

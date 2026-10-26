@@ -15,6 +15,7 @@ PROC main() HANDLE
   filename := cleanArg()
   IF StrLen(filename) = 0 THEN filename := defaultFormPath()
 
+  setFrameBase(dirPart(filename))
   form := readForm(filename)
   IF form = NIL THEN Raise('Could not read the form')
 

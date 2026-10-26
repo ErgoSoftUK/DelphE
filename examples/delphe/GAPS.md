@@ -21,6 +21,9 @@ hand-written windows in `src/designer/Designer.e`.
 | Group spacing | memo with its scrollbar | covered inside the Memo component |
 | Components the code needs by name | `cycForms`, `sldW` ... | work today; events and properties are enough |
 
+Frames are now supported: `properties.mframe` and `events.mframe` are used by `main.mform`
+instead of the placeholders that used to stand in for them.
+
 What does work: the Entries dialog, the Properties page and the Events page can be
 described completely (labels, strings, a cycle, checkmarks with spacers, buttons, a
 memo); `main.mform` is the best approximation of the main window with what exists.

@@ -160,7 +160,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse
   w := 0
   fx := 0
   fy := 0
@@ -174,6 +174,7 @@ PROC showProps(c: PTR TO component)
   isItems := FALSE
   isCols := FALSE
   isDlg := FALSE
+  isUse := FALSE
   isFile := FALSE
   ar := ''
   fi := 0
@@ -189,8 +190,9 @@ PROC showProps(c: PTR TO component)
     IF flags AND PF_FONT THEN fi := c.fontIdx
     IF isUtilityKind(c.kind) THEN isDlg := TRUE
     IF c.kind = CK_FILEDLG THEN isFile := TRUE
-    IF (c.kind <> CK_WINDOW) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) THEN usable := TRUE
-    IF isContainer(c.kind) AND (c.kind <> CK_WINDOW) AND (c.kind <> CK_UTILS) THEN isGroup := TRUE
+    IF c.kind = CK_USE THEN isUse := TRUE
+    IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) THEN usable := TRUE
+    IF isContainer(c.kind) AND (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) THEN isGroup := TRUE
     IF (flags AND PF_ARG) AND c.arg THEN ar := c.arg
     IF c.kind = CK_SLIDER THEN isSlider := TRUE
     IF c.kind = CK_GAUGE THEN isGauge := TRUE
@@ -222,7 +224,7 @@ PROC showProps(c: PTR TO component)
   setEnabled(chkDisabled, usable)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
-  setEnabled(strArg, isDlg)
+  setEnabled(strArg, isDlg OR isUse)
   setEnabled(chkSave, isFile)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
   setEnabled(strMin, isSlider)
@@ -280,7 +282,7 @@ PROC commitProps()
   DEF p, sel, bit, v, ok, h: PTR TO CHAR, i, fnt, a: PTR TO CHAR, ap
   c := selected
   IF c = NIL THEN RETURN
-  IF (c.kind = CK_WINDOW) OR (c.kind = CK_UTILS) THEN RETURN
+  IF isRootKind(c.kind) OR (c.kind = CK_UTILS) THEN RETURN
 
   nf := 0
 
@@ -333,7 +335,7 @@ PROC commitProps()
   FOR i := 0 TO StrLen(a) - 1
     IF a[i] = 34 THEN a[i] := 39
   ENDFOR
-  IF isUtilityKind(c.kind) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
+  IF (isUtilityKind(c.kind) OR (c.kind = CK_USE)) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
   IF c.kind = CK_FILEDLG
     get(chkSave, MUIA_Selected, {sel})
     IF sel THEN nf := nf OR PF_SAVE
@@ -380,7 +382,7 @@ PROC commitName()
     RETURN
   ENDIF
   -> E treats capitalised identifiers as constants
-  IF (c.kind <> CK_WINDOW) AND ((p[0] < "a") OR (p[0] > "z"))
+  IF (isRootKind(c.kind) = FALSE) AND ((p[0] < "a") OR (p[0] > "z"))
     status('Name must start with a lowercase letter')
     set(strName, MUIA_String_Contents, c.name)
     RETURN
@@ -396,7 +398,7 @@ PROC commitName()
   label := makeLabel(c)
   doMethodA(tree, [MUIM_Listtree_Rename, selectedNode, label, 0])
   markDirty()
-  IF c.kind = CK_WINDOW THEN refreshProjectList()
+  IF isRootKind(c.kind) THEN refreshProjectList()
   status('Renamed')
 ENDPROC
 
@@ -589,13 +591,19 @@ PROC regenerate()
   DEF path, res
   commitEdits()
   saveCode()
+  IF (form.kind = CK_FRAME) AND (projectPath = NIL)
+    status('A frame is generated with the forms that use it: open one of those forms')
+    RETURN GEN_NOWINDOW
+  ENDIF
   path := outputPath()
   IF projectPath
     res := generateProjectNow(path)
   ELSE
     res := generateFile(path, form)
   ENDIF
-  IF res = GEN_WRITEFAIL
+  IF res = GEN_NOWINDOW
+    status('The project has no form (window) to build')
+  ELSEIF res = GEN_WRITEFAIL
     status('Could not write the generated file')
   ELSEIF res = GEN_NOMARKERS
     status('That file has no DELPHE GENERATED CODE line: move it aside first')
@@ -729,10 +737,14 @@ PROC doNew()
   IF path = NIL THEN RETURN
   IF okToOverwrite(path) = FALSE THEN RETURN
 
-  w := newComponent(CK_WINDOW, nameFromPath(path), 'New Form')
-  root := newComponent(CK_VGROUP, 'root', NIL)
-  w.addChild(root)
-  root.addChild(newComponent(CK_TEXT, 'lblHello', 'Hello'))
+  IF isFramePath(path)
+    w := makeStarterFrame(nameFromPath(path))
+  ELSE
+    w := newComponent(CK_WINDOW, nameFromPath(path), 'New Form')
+    root := newComponent(CK_VGROUP, 'root', NIL)
+    w.addChild(root)
+    root.addChild(newComponent(CK_TEXT, 'lblHello', 'Hello'))
+  ENDIF
 
   fh := Open(path, MODE_NEWFILE)
   IF fh = NIL
@@ -774,11 +786,15 @@ PROC projectDir() IS dirPart(projectPath)
 
 -> The program is made of every form of the project, the main form first
 PROC generateProjectNow(path)
-  DEF forms, i
+  DEF forms, i, w: PTR TO component
   syncCurrent()
   forms := List(projCount)
-  FOR i := 0 TO projCount - 1 DO ListAdd(forms, [projForms[i]], 1)
-ENDPROC generateProject(path, projectName, forms, projCount)
+  FOR i := 0 TO projCount - 1
+    w := projForms[i]
+    IF w.kind = CK_WINDOW THEN ListAdd(forms, [w], 1)
+  ENDFOR
+  IF ListLen(forms) = 0 THEN RETURN GEN_NOWINDOW
+ENDPROC generateProject(path, projectName, forms, ListLen(forms))
 
 -> The Project window's list: the forms by window name, the main form first
 PROC refreshProjectList()
@@ -869,6 +885,22 @@ PROC uniqueFormName(name)
 ENDPROC s
 
 -> A new form: a window with a group and a label
+-> Does the path end in .mframe?
+PROC isFramePath(path)
+  DEF n
+  n := StrLen(path)
+  IF n < 8 THEN RETURN FALSE
+  IF StrCmp(path + n - 7, '.mframe', 7) THEN RETURN TRUE
+ENDPROC FALSE
+
+PROC makeStarterFrame(name)
+  DEF f: PTR TO component, root: PTR TO component
+  f := newComponent(CK_FRAME, name, NIL)
+  root := newComponent(CK_VGROUP, 'root', NIL)
+  f.addChild(root)
+  root.addChild(newComponent(CK_TEXT, 'lblHello', 'Hello'))
+ENDPROC f
+
 PROC makeStarterForm(name)
   DEF w: PTR TO component, root: PTR TO component
   w := newComponent(CK_WINDOW, name, 'New Form')
@@ -897,7 +929,11 @@ PROC addNewForm()
   path := askFile('Create a new form', TRUE, projectDir(), '')
   IF path = NIL THEN RETURN
   IF okToOverwrite(path) = FALSE THEN RETURN
-  w := makeStarterForm(uniqueFormName(nameFromPath(path)))
+  IF isFramePath(path)
+    w := makeStarterFrame(uniqueFormName(nameFromPath(path)))
+  ELSE
+    w := makeStarterForm(uniqueFormName(nameFromPath(path)))
+  ENDIF
   fh := Open(path, MODE_NEWFILE)
   IF fh = NIL
     status('Could not create the file')
@@ -1214,6 +1250,7 @@ ENDPROC
 PROC doPreview()
   DEF w
   commitEdits()
+  setFrameBase(outputDir())
   closePreview()
   w := buildWindow(form)
   IF w = NIL
@@ -1255,8 +1292,32 @@ PROC uniqueName(prefix)
   UNTIL nameTaken(form, s, NIL) = FALSE
 ENDPROC s
 
+-> The name with its first letter in lower case, as a new E-string
+PROC lowerFirst(s)
+  DEF r
+  r := copyStr(s)
+  IF (r[0] >= "A") AND (r[0] <= "Z") THEN r[0] := r[0] + 32
+ENDPROC r
+
+-> Asks for a frame file and returns its path relative to the program's folder (an
+-> E-string) and the frame's name, or NIL if there was none or it is not a frame
+PROC chooseFrame()
+  DEF path, fm: PTR TO component
+  path := askFileEx('Choose a frame', FALSE, outputDir(), '', '#?.mframe', '.mframe')
+  IF path = NIL THEN RETURN NIL, NIL
+  fm := readForm(path)
+  IF fm = NIL
+    status('Could not read that file (details on the console)')
+    RETURN NIL, NIL
+  ENDIF
+  IF fm.kind <> CK_FRAME
+    status('That file is not a frame')
+    RETURN NIL, NIL
+  ENDIF
+ENDPROC relPath(outputDir(), path), fm.name
+
 PROC doAdd(idx)
-  DEF kind, target: PTR TO component, c: PTR TO component
+  DEF kind, target: PTR TO component, c: PTR TO component, framePath, frameName, nm, ttl
 
   commitEdits()
   kind := idx + 1          -> the palette lists VGroup onwards, which follow CK_WINDOW
@@ -1266,6 +1327,13 @@ PROC doAdd(idx)
       status('That component needs a MUI class that is not installed')
       RETURN
     ENDIF
+  ENDIF
+
+  framePath := NIL
+  frameName := NIL
+  IF kind = CK_USE
+    framePath, frameName := chooseFrame()
+    IF framePath = NIL THEN RETURN
   ENDIF
 
   IF isUtilityKind(kind)
@@ -1285,7 +1353,7 @@ PROC doAdd(idx)
       IF target = NIL THEN target := form
     ENDIF
 
-    IF target.kind = CK_WINDOW
+    IF isRootKind(target.kind)
       IF rootOf(target)
         status('The window already has a root group: select a group first')
         RETURN
@@ -1297,20 +1365,29 @@ PROC doAdd(idx)
     ENDIF
   ENDIF
 
-  c := newComponent(kind,
-         uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
-                              'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
-                              'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg'], idx)),
-         ListItem([NIL, NIL, 'Button', 'Label', '', '',
-                   'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
-                   'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?'], idx))
+  IF kind = CK_USE
+    nm := uniqueName(lowerFirst(frameName))
+    ttl := NIL
+  ELSE
+    nm := uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
+                               'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
+                               'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg'], idx))
+    ttl := ListItem([NIL, NIL, 'Button', 'Label', '', '',
+                     'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
+                     'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?'], idx)
+  ENDIF
+  c := newComponent(kind, nm, ttl)
   pushUndo()
+  IF kind = CK_USE
+    c.arg := framePath
+    c.propFlags := c.propFlags OR PF_ARG
+  ENDIF
   IF target = NIL
     target := newComponent(CK_UTILS, uniqueName('utilities'), NIL)
     form.addChild(target)
   ENDIF
   -> the root group goes first, ahead of a Utilities branch
-  IF target.kind = CK_WINDOW THEN target.insertAt(c, 0) ELSE target.addChild(c)
+  IF isRootKind(target.kind) THEN target.insertAt(c, 0) ELSE target.addChild(c)
   -> a column group starts with two columns, shown in the Value field
   IF kind = CK_COLGROUP
     c.value := 2
@@ -1339,7 +1416,7 @@ PROC doDelete()
   commitEdits()
   c := selected
   IF c = NIL THEN RETURN
-  IF c.kind = CK_WINDOW
+  IF isRootKind(c.kind)
     status('The window cannot be deleted')
     RETURN
   ENDIF
@@ -1358,7 +1435,7 @@ PROC doMove(delta)
   IF c = NIL THEN RETURN
   p := c.parent
   IF p = NIL THEN RETURN
-  IF p.kind = CK_WINDOW THEN RETURN
+  IF isRootKind(p.kind) THEN RETURN
   i := p.indexOf(c)
   j := i + delta
   IF (j < 0) OR (j >= p.childCount()) THEN RETURN
@@ -1640,6 +1717,7 @@ ENDPROC
 PROC refreshLive()
   DEF obj
   liveStale := FALSE
+  setFrameBase(outputDir())
   doMethodA(liveHolder, [MUIM_Group_InitChange])
   IF liveObj
     doMethodA(liveHolder, [OM_REMMEMBER, liveObj])
@@ -1917,7 +1995,7 @@ PROC makeToolbars()
   -> toolbar is wide: a Toolbar never wraps, and a long row would fix the
   -> inspector's width. The kinds of each tab, in button order (a button's ID is
   -> ID_PALETTE + its kind - 1):
-  palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER]
+  palKinds1 := [CK_VGROUP, CK_HGROUP, CK_COLGROUP, CK_SCROLL, CK_PAGES, CK_SPACER, CK_USE]
   palKinds2 := [CK_BUTTON, CK_STRING, CK_CHECK, CK_CYCLE, CK_RADIO, CK_SLIDER, CK_MEMO]
   palKinds3 := [CK_TEXT, CK_GAUGE, CK_LIST]
   palKinds4 := [CK_FILEDLG, CK_MSGDLG]
@@ -1929,6 +2007,7 @@ PROC makeToolbars()
     Toolbar_HintButton(0, 'Add a scrolling group', NIL),
     Toolbar_HintButton(0, 'Add pages (tabs)', NIL),
     Toolbar_HintButton(0, 'Add a spacer (empty space that stretches)', NIL),
+    Toolbar_HintButton(0, 'Use a frame (a reusable group from a .mframe file)', NIL),
     Toolbar_End])
   layoutBar := ToolbarObject,
     MUIA_Toolbar_ImageType, MUIV_Toolbar_ImageType_File,
@@ -2063,7 +2142,7 @@ PROC makeInspectorPanel()
               -> for a Cycle, Radio or List: edit the entries one per line
               Child, btnEntries := SimpleButton('...'),
             End,
-            Child, Label2('Pattern/buttons:'),
+            Child, Label2('Pattern/buttons/frame:'),
             -> a file dialog's pattern or a message dialog's buttons (separated by |)
             Child, strArg := StringObject, StringFrame, MUIA_String_Contents, '', End,
             Child, Label2('Weight:'),

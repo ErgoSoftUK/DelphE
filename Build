@@ -4,8 +4,8 @@ echo "Building.." > build.out
 cd src
 ec FormModel >> /build.out
 ec MForm >> /build.out
-ec Generator >> /build.out
 ec Util >> /build.out
+ec Generator >> /build.out
 ec Project >> /build.out
 ec Highlight >> /build.out
 ec Builder >> /build.out

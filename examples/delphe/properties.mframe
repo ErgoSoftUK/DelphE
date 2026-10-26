@@ -1,4 +1,4 @@
-Window PropertiesPage "Properties"
+Frame PropertiesPanel
   VGroup root
     ColGroup rows :value=2
       Text lblName "Name:" :weight=0

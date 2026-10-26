@@ -15,11 +15,11 @@
 OPT MODULE
 OPT EXPORT
 
-MODULE 'dos/dos', 'exec/memory', '*FormModel'
+MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util'
 
-CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2
+CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
-DEF evCounter
+DEF evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
 
 PROC put(fh, s) IS Write(fh, s, StrLen(s))
 
@@ -187,6 +187,66 @@ PROC markLine(fh, isBegin, tag)
   ENDIF
 ENDPROC
 
+/*** frames ***/
+
+-> The frame a Use component refers to, read from its file, or NIL
+PROC frameOf(c: PTR TO component)
+  DEF path
+  IF (c.propFlags AND PF_ARG) = FALSE THEN RETURN NIL
+  IF genBase THEN path := joinPath(genBase, c.arg) ELSE path := copyStr(c.arg)
+ENDPROC readForm(path)
+
+-> The type name of a used frame, for a field's declaration
+PROC frameTypeName(c: PTR TO component)
+  DEF f: PTR TO component
+  f := frameOf(c)
+  IF f THEN RETURN f.name
+ENDPROC 'MissingFrame'
+
+-> Does the list already hold a frame of this name?
+PROC frameListed(frames, name)
+  DEF i, f: PTR TO component
+  FOR i := 0 TO ListLen(frames) - 1
+    f := ListItem(frames, i)
+    IF StrLen(f.name) = StrLen(name)
+      IF StrCmp(f.name, name, ALL) THEN RETURN TRUE
+    ENDIF
+  ENDFOR
+ENDPROC FALSE
+
+-> Adds the frames that c uses, and those they use, to the list: each frame once,
+-> after the frames it depends on, so that its type can refer to theirs
+PROC collectFrames(c: PTR TO component, frames, depth)
+  DEF ch: PTR TO component, f: PTR TO component
+  IF depth > 8 THEN RETURN
+  IF c.kind = CK_USE
+    f := frameOf(c)
+    IF f
+      IF frameListed(frames, f.name) = FALSE
+        collectFrames(f, frames, depth + 1)
+        IF frameListed(frames, f.name) = FALSE THEN ListAdd(frames, [f], 1)
+      ENDIF
+    ENDIF
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    collectFrames(ch, frames, depth)
+    ch := ch.next
+  ENDWHILE
+ENDPROC
+
+-> The windows followed by the frames they use, as one list (n entries of forms
+-> are windows). Sets the folder the frame paths are relative to.
+PROC withFrames(path, forms: PTR TO LONG, n)
+  DEF all, i, frames
+  genBase := dirPart(path)
+  frames := List(40)
+  FOR i := 0 TO n - 1 DO collectFrames(forms[i], frames, 0)
+  all := List(n + ListLen(frames) + 1)
+  FOR i := 0 TO n - 1 DO ListAdd(all, [forms[i]], 1)
+  FOR i := 0 TO ListLen(frames) - 1 DO ListAdd(all, [ListItem(frames, i)], 1)
+ENDPROC all
+
 /*** fields ***/
 
 PROC declareLeaves(fh, c: PTR TO component)
@@ -194,7 +254,10 @@ PROC declareLeaves(fh, c: PTR TO component)
   IF isContainer(c.kind) = FALSE
     put(fh, '  ')
     put(fh, c.name)
-    IF c.kind = CK_FILEDLG
+    IF c.kind = CK_USE
+      put(fh, ': PTR TO t')
+      put(fh, frameTypeName(c))
+    ELSEIF c.kind = CK_FILEDLG
       put(fh, ': PTR TO tFileDialog')
     ELSEIF c.kind = CK_MSGDLG
       put(fh, ': PTR TO tMessageDialog')
@@ -326,7 +389,19 @@ ENDPROC
 
 PROC createLeaves(fh, c: PTR TO component)
   DEF ch: PTR TO component
-  IF isContainer(c.kind) = FALSE
+  IF c.kind = CK_USE
+    -> an instance of a frame: its events get their own range of ids
+    useCounter++
+    put(fh, '  NEW self.')
+    put(fh, c.name)
+    put(fh, '\n  self.')
+    put(fh, c.name)
+    put(fh, '.idBase := self.idBase + ')
+    putNum(fh, useCounter * 1000)
+    put(fh, '\n  self.')
+    put(fh, c.name)
+    put(fh, '.create()\n')
+  ELSEIF isContainer(c.kind) = FALSE
     IF c.kind = CK_MEMO
       put(fh, '  self.')
       put(fh, c.name)
@@ -350,6 +425,19 @@ ENDPROC
 -> Emits one expression with no trailing comma; the caller adds it.
 PROC containerExpr(fh, c: PTR TO component, depth)
   DEF ch: PTR TO component, kind
+
+  IF c.kind = CK_USE
+    -> the frame's group inside a plain group that takes this use's weight, size, ...
+    put(fh, 'VGroup,\n')
+    emitGroupExtras(fh, c, depth)
+    indent(fh, depth + 1)
+    put(fh, 'Child, self.')
+    put(fh, c.name)
+    put(fh, '.handle,\n')
+    indent(fh, depth)
+    put(fh, 'End')
+    RETURN
+  ENDIF
 
   IF c.kind = CK_MEMO
     put(fh, 'HGroup,\n')
@@ -376,6 +464,15 @@ PROC containerExpr(fh, c: PTR TO component, depth)
   ENDIF
 
   kind := c.kind
+  IF kind = CK_FRAME
+    ch := rootOf(c)
+    IF ch
+      containerExpr(fh, ch, depth)
+    ELSE
+      put(fh, 'RectangleObject, End')
+    ENDIF
+    RETURN
+  ENDIF
   SELECT kind
     CASE CK_WINDOW
       put(fh, 'WindowObject,\n')
@@ -487,6 +584,11 @@ ENDPROC
 PROC emitConnect(fh, c: PTR TO component)
   DEF ch: PTR TO component, kind
   kind := c.kind
+  IF kind = CK_USE
+    put(fh, '  self.')
+    put(fh, c.name)
+    put(fh, '.connect(app)\n')
+  ENDIF
   IF c.handler
     IF eventName(kind)
       evCounter++
@@ -540,6 +642,21 @@ PROC emitDispatch(fh, c: PTR TO component)
   ENDWHILE
 ENDPROC
 
+-> Passes every event on to the frames this one uses, which react to their own range
+PROC emitForwards(fh, c: PTR TO component)
+  DEF ch: PTR TO component
+  IF c.kind = CK_USE
+    put(fh, '  self.')
+    put(fh, c.name)
+    put(fh, '.handleEvent(id)\n')
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    emitForwards(fh, ch)
+    ch := ch.next
+  ENDWHILE
+ENDPROC
+
 PROC countEvents(c: PTR TO component)
   DEF ch: PTR TO component, n
   n := 0
@@ -567,6 +684,7 @@ PROC genProcs(fh, win: PTR TO component)
   put(fh, 'PROC create() OF t')
   put(fh, win.name)
   put(fh, '\n')
+  useCounter := 0
   createLeaves(fh, win)
   put(fh, '  self.handle := ')
   containerExpr(fh, win, 1)
@@ -589,15 +707,19 @@ PROC genProcs(fh, win: PTR TO component)
     emitDispatch(fh, win)
     put(fh, '  ENDSELECT\n')
   ENDIF
+  emitForwards(fh, win)
   put(fh, 'ENDPROC\n\n')
 
-  put(fh, 'PROC show() OF t')
-  put(fh, win.name)
-  put(fh, '\n  set(self.handle, MUIA_Window_Open, MUI_TRUE)\nENDPROC\n\n')
+  -> only a window can be shown and hidden
+  IF win.kind = CK_WINDOW
+    put(fh, 'PROC show() OF t')
+    put(fh, win.name)
+    put(fh, '\n  set(self.handle, MUIA_Window_Open, MUI_TRUE)\nENDPROC\n\n')
 
-  put(fh, 'PROC hide() OF t')
-  put(fh, win.name)
-  put(fh, '\n  set(self.handle, MUIA_Window_Open, FALSE)\nENDPROC\n\n')
+    put(fh, 'PROC hide() OF t')
+    put(fh, win.name)
+    put(fh, '\n  set(self.handle, MUIA_Window_Open, FALSE)\nENDPROC\n\n')
+  ENDIF
 
 ENDPROC
 
@@ -902,16 +1024,21 @@ ENDPROC GEN_OK
 -> Writes the generated file (path.gen.e) and updates the user's file. Returns
 -> GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
 PROC generateFile(path, win: PTR TO component)
-  DEF gp, fh, res
+  DEF gp, fh, res, all, i
   gp := genPath(path)
+  all := withFrames(path, [win], 1)
   fh := openGenFile(gp)
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
-  genConstants(fh, [win], 1)
-  genRuntimeTypes(fh, [win], 1)
-  genRuntimeProcs(fh, [win], 1)
+  genConstants(fh, all, ListLen(all))
+  genRuntimeTypes(fh, all, ListLen(all))
+  genRuntimeProcs(fh, all, ListLen(all))
+  -> the frames the form uses come first, each with its object and procedures
+  FOR i := 1 TO ListLen(all) - 1
+    genRegion(fh, ListItem(all, i), NIL, 0)
+  ENDFOR
   genRegion(fh, win, NIL, 0)
   Close(fh)
-  res := syncUserFile(path, NIL, [win], 1)
+  res := syncUserFile(path, NIL, all, ListLen(all))
 ENDPROC res
 
 /*
@@ -1011,7 +1138,7 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
     put(fh, '\n  fm')
     put(fh, win.name)
     put(fh, '.idBase := ')
-    putNum(fh, (i + 1) * 1000)
+    putNum(fh, Mul(i + 1, 100000))
     put(fh, '\n  fm')
     put(fh, win.name)
     put(fh, '.create()\n  IF fm')
@@ -1095,12 +1222,21 @@ ENDPROC
 ** first is the main form). Returns GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
 */
 PROC generateProject(path, projName, forms: PTR TO LONG, n)
-  DEF fh, i, win: PTR TO component, tag
+  DEF fh, i, win: PTR TO component, tag, all, total
 
+  all := withFrames(path, forms, n)
+  total := ListLen(all)
   fh := openGenFile(genPath(path))
   IF fh = NIL THEN RETURN GEN_WRITEFAIL
-  genConstants(fh, forms, n)
-  genRuntimeTypes(fh, forms, n)
+  genConstants(fh, all, total)
+  genRuntimeTypes(fh, all, total)
+  -> the objects of the frames, then of the forms
+  FOR i := n TO total - 1
+    win := ListItem(all, i)
+    tag := formTag('type', win)
+    genRegion(fh, win, tag, 1)
+    DisposeLink(tag)
+  ENDFOR
   FOR i := 0 TO n - 1
     win := forms[i]
     tag := formTag('type', win)
@@ -1108,7 +1244,13 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
     DisposeLink(tag)
   ENDFOR
   genGlobalsRegion(fh, forms, n)
-  genRuntimeProcs(fh, forms, n)
+  genRuntimeProcs(fh, all, total)
+  FOR i := n TO total - 1
+    win := ListItem(all, i)
+    tag := formTag('form', win)
+    genRegion(fh, win, tag, 2)
+    DisposeLink(tag)
+  ENDFOR
   FOR i := 0 TO n - 1
     win := forms[i]
     tag := formTag('form', win)
@@ -1117,4 +1259,4 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
   ENDFOR
   genRunRegion(fh, projName, forms, n)
   Close(fh)
-ENDPROC syncUserFile(path, projName, forms, n)
+ENDPROC syncUserFile(path, projName, all, total)
