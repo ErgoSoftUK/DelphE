@@ -1,0 +1,7 @@
+Window EntriesWindow "Entries"
+  VGroup root
+    Text lblHelp "One entry per line:"
+    Memo memoEntries ""
+    HGroup buttons
+      Button btnOk "OK" @OnClick=btnOkClick
+      Button btnCancel "Cancel" @OnClick=btnCancelClick

@@ -1,0 +1,35 @@
+Window DelphEMain "DelphE Designer"
+  VGroup root
+    Text lblToolbar "[needs Toolbar.mcc: actions toolbar]" :weight=0
+    HGroup body
+      VGroup inspector :weight=30
+        Cycle cycForms "(form)" @OnChange=cycFormsChange :weight=0
+        Text txtKind ""
+        Pages palette "Layout|Input|Display|Utility" :weight=0
+          VGroup palLayout
+            Text lblPalLayout "[needs Toolbar.mcc: palette]"
+          VGroup palInput
+            Text lblPalInput "[needs Toolbar.mcc: palette]"
+          VGroup palDisplay
+            Text lblPalDisplay "[needs Toolbar.mcc: palette]"
+          VGroup palUtility
+            Text lblPalUtility "[needs Toolbar.mcc: palette]"
+        List lstTree "[needs Listtree.mcc: component tree]" :weight=40
+        HGroup treeButtons :weight=0
+          Button btnDelete "Delete" @OnClick=btnDeleteClick
+          Button btnUp "Up" @OnClick=btnUpClick
+          Button btnDown "Down" @OnClick=btnDownClick
+        Pages inspPages "Properties|Events" :weight=60
+          VGroup propsPage
+            Text lblProps "(see properties.mform)"
+          VGroup eventsPage
+            Text lblEvents "(see events.mform)"
+      Pages editorPages "Form|Code" :weight=70
+        VGroup formPage
+          Text lblSizeNote "[needs vertical sliders and a custom preview host]"
+          Slider sldW :min=0 :max=100 :value=70 @OnChange=sldWChange :weight=0
+        VGroup codePage
+          Text txtCodePath ""
+          Memo memoCode "" :weight=80
+          Memo memoLog "" :weight=20
+    Text txtStatus "" :weight=0

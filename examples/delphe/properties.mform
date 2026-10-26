@@ -1,0 +1,40 @@
+Window PropertiesPage "Properties"
+  VGroup root
+    ColGroup rows :value=2
+      Text lblName "Name:" :weight=0
+      String strName ""
+      Text lblTitle "Title/items:" :weight=0
+      HGroup titleRow
+        String strTitle ""
+        Button btnEntries "..." @OnClick=btnEntriesClick :weight=0
+      Text lblArg "Pattern/buttons:" :weight=0
+      String strArg ""
+      Text lblWeight "Weight:" :weight=0
+      String strWeight ""
+      Text lblFixW "Fixed width:" :weight=0
+      String strFixW ""
+      Text lblFixH "Fixed height:" :weight=0
+      String strFixH ""
+      Text lblMin "Minimum:" :weight=0
+      String strMin ""
+      Text lblMax "Maximum:" :weight=0
+      String strMax ""
+      Text lblValue "Value/columns:" :weight=0
+      String strValue ""
+      Text lblHint "Hint:" :weight=0
+      String strHint ""
+      Text lblFont "Font:" :weight=0
+      Cycle cycFont "Default|Normal|Tiny|Big|Title|Fixed|List|Button" @OnChange=cycFontChange
+      Text lblDisabled "Disabled:" :weight=0
+      HGroup disabledRow
+        Check chkDisabled @OnChange=chkDisabledChange
+        Spacer sp1
+      Text lblFrame "Frame:" :weight=0
+      HGroup frameRow
+        Check chkFrame @OnChange=chkFrameChange
+        Spacer sp2
+      Text lblSave "Save mode:" :weight=0
+      HGroup saveRow
+        Check chkSave @OnChange=chkSaveChange
+        Spacer sp3
+    Spacer filler

@@ -74,6 +74,7 @@ tools/              development tools: make-icons.ps1 (rebuilds the strips from 
                     LED icon pack), GenTest.e (smoke test for the reader, writer and
                     generator, no MUI) and PenTest.e (shows TextEditor's pen colours)
 examples/           example forms and the demo project (demo.mproj)
+                    examples/delphe: DelphE described in itself (see GAPS.md)
 scratch/            your own test files; git-ignores it, so it stays local
 Build               AmigaDOS script: compiles everything
 Watch               optional build watcher (see below)

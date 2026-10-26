@@ -1,0 +1,9 @@
+Window EventsPage "Events"
+  VGroup root
+    ColGroup rows :value=2
+      Text txtEvent "(no events)" :weight=0
+      HGroup handlerRow
+        String strHandler ""
+        Button btnDefHandler "New" @OnClick=btnDefHandlerClick :weight=0
+        Button btnEditHandler "Edit" @OnClick=btnEditHandlerClick :weight=0
+    Spacer filler
