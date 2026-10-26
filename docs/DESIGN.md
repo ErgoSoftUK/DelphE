@@ -45,7 +45,7 @@ source keeps the compiled program independent of the IDE.
 
 | Kind    | Title means                 | Event           | Notes                          |
 |---------|-----------------------------|-----------------|--------------------------------|
-| Window  | window title                |                 | one root group; no properties  |
+| Window  | window title                |                 | one root group; `:arg` = ID, `:fixw` / `:fixh` = size, `:center`, `:open` (forms of a project) |
 | VGroup  | frame title (if framed)     |                 | container                      |
 | HGroup  | frame title (if framed)     |                 | container                      |
 | Button  | label                       | `OnClick`       |                                |
@@ -85,6 +85,12 @@ field in the form object like any other leaf, typed as a small helper object (`t
 them (`genRuntimeTypes` and `genRuntimeProcs`; in a project the procedures come after the
 globals). They need no extra module. The `:arg` property holds a file dialog's pattern or a
 message dialog's buttons.
+
+**Window properties.** `windowId` gives `MUIA_Window_ID` (MUI remembers a window's place under it, so
+the old fixed `"MAIN"` made every form of a project share one). Width and height reuse the
+fixed-size fields, `:center` is `MUIV_Window_LeftEdge_Centered` and `TopEdge`, and `:open` makes
+`delpheRun` call `show()` on that form after the main one. Window events (OnClose) and a timer
+need the generated code to own the main loop, and are not done yet.
 
 **Menus.** A `MenuStrip` is a non-visual component in the Utilities branch; `allowedChild`
 in FormModel.e says what may go under what (strip > menu > item > item, and nothing else), and

@@ -64,6 +64,8 @@ PROC writeForm(fh, c: PTR TO component, depth)
   ENDIF
   IF c.propFlags AND PF_SAVE THEN mput(fh, ' :save')
   IF c.propFlags AND PF_VERT THEN mput(fh, ' :vert')
+  IF c.propFlags AND PF_CENTER THEN mput(fh, ' :center')
+  IF c.propFlags AND PF_OPEN THEN mput(fh, ' :open')
   IF c.propFlags AND PF_DISABLED THEN mput(fh, ' :disabled')
   IF c.propFlags AND PF_FRAME THEN mput(fh, ' :frame')
   IF c.propFlags AND PF_HINT
@@ -188,6 +190,10 @@ PROC applyProp(c: PTR TO component, tok)
     c.propFlags := c.propFlags OR PF_SAVE
   ELSEIF tokIs(tok, 'vert')
     c.propFlags := c.propFlags OR PF_VERT
+  ELSEIF tokIs(tok, 'center')
+    c.propFlags := c.propFlags OR PF_CENTER
+  ELSEIF tokIs(tok, 'open')
+    c.propFlags := c.propFlags OR PF_OPEN
   ELSEIF tokIs(tok, 'disabled')
     c.propFlags := c.propFlags OR PF_DISABLED
   ELSEIF tokIs(tok, 'frame')

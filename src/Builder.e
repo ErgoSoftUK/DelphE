@@ -356,6 +356,12 @@ PROC buildWindow(c: PTR TO component)
   tags := List(16)
   tags := ListCopy(tags, [TAG_IGNORE, 0])
   tags := ListAdd(tags, [MUIA_Window_Title, titleOf(c), MUIA_Window_ID, "PREV", MUIA_Window_RootObject, root])
+  IF c.propFlags AND PF_FIXW THEN tags := ListAdd(tags, [MUIA_Window_Width, c.fixW])
+  IF c.propFlags AND PF_FIXH THEN tags := ListAdd(tags, [MUIA_Window_Height, c.fixH])
+  IF c.propFlags AND PF_CENTER
+    tags := ListAdd(tags, [MUIA_Window_LeftEdge, MUIV_Window_LeftEdge_Centered,
+                           MUIA_Window_TopEdge, MUIV_Window_TopEdge_Centered])
+  ENDIF
   strip := menustripOf(c)
   IF strip
     menu := buildMenuNode(strip)

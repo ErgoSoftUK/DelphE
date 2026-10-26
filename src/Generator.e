@@ -187,6 +187,27 @@ PROC markLine(fh, isBegin, tag)
   ENDIF
 ENDPROC
 
+/*** windows ***/
+
+-> A window's ID: what the user set, else the first four letters of its name in capitals
+PROC windowId(win: PTR TO component)
+  DEF s, i, ch, n, nm
+  s := String(8)
+  IF win.propFlags AND PF_ARG
+    StrCopy(s, win.arg, 4)
+    RETURN s
+  ENDIF
+  nm := win.name
+  n := StrLen(nm)
+  IF n > 4 THEN n := 4
+  FOR i := 0 TO n - 1
+    ch := nm[i]
+    IF (ch >= "a") AND (ch <= "z") THEN ch := ch - 32
+    s[i] := ch
+  ENDFOR
+  SetStr(s, n)
+ENDPROC s
+
 /*** frames ***/
 
 -> The frame a Use component refers to, read from its file, or NIL
@@ -538,8 +559,27 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       quoted(fh, c.title)
       put(fh, ',\n')
       indent(fh, depth + 1)
-      -> a window ID is a 4-char ULONG ("MAIN"), not a string pointer
-      put(fh, 'MUIA_Window_ID, \qMAIN\q,\n')
+      -> a window ID is a 4-char ULONG ("MAIN"), not a string pointer; it is what MUI
+      -> remembers the window's place under, so each form needs its own
+      put(fh, 'MUIA_Window_ID, \q')
+      put(fh, windowId(c))
+      put(fh, '\q,\n')
+      IF c.propFlags AND PF_FIXW
+        indent(fh, depth + 1)
+        putPair(fh, 'MUIA_Window_Width, ', c.fixW)
+        put(fh, ',\n')
+      ENDIF
+      IF c.propFlags AND PF_FIXH
+        indent(fh, depth + 1)
+        putPair(fh, 'MUIA_Window_Height, ', c.fixH)
+        put(fh, ',\n')
+      ENDIF
+      IF c.propFlags AND PF_CENTER
+        indent(fh, depth + 1)
+        put(fh, 'MUIA_Window_LeftEdge, MUIV_Window_LeftEdge_Centered,\n')
+        indent(fh, depth + 1)
+        put(fh, 'MUIA_Window_TopEdge, MUIV_Window_TopEdge_Centered,\n')
+      ENDIF
       indent(fh, depth + 1)
       IF menustripOf(c)
         put(fh, 'MUIA_Window_Menustrip, self.')
@@ -1304,7 +1344,17 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
   win := forms[0]
   put(fh, '\n  fm')
   put(fh, win.name)
-  put(fh, '.show()\n\n')
+  put(fh, '.show()\n')
+  -> the other forms that are to be open from the start
+  FOR i := 1 TO n - 1
+    win := forms[i]
+    IF win.propFlags AND PF_OPEN
+      put(fh, '  fm')
+      put(fh, win.name)
+      put(fh, '.show()\n')
+    ENDIF
+  ENDFOR
+  put(fh, '\n')
   put(fh, '  running := TRUE\n  WHILE running\n')
   put(fh, '    id := doMethodA(app, [MUIM_Application_NewInput, {sigs}])\n')
   put(fh, '    IF id = MUIV_Application_ReturnID_Quit\n      running := FALSE\n    ELSE\n')

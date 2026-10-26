@@ -53,7 +53,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
     editor, slider, txtCodePath,
     logEditor, logSlider,
-    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, chkVert, numBuf,
+    strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, chkSave, chkVert, chkCenter, chkOpen, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
     btnDelete, btnUp, btnDown,
     form: PTR TO component, filename,
@@ -163,7 +163,7 @@ ENDPROC
 -> Fills the property gadgets from c (NIL = blank) and enables the ones that
 -> make sense for its kind: groups can have a frame, the window no properties
 PROC showProps(c: PTR TO component)
-  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse, isItem
+  DEF flags, usable, isGroup, w, fx, fy, mn, mx, vl, isSlider, isGauge, isItems, fi, isCols, isDlg, isFile, ar, isUse, isItem, isWin
   w := 0
   fx := 0
   fy := 0
@@ -179,6 +179,7 @@ PROC showProps(c: PTR TO component)
   isDlg := FALSE
   isUse := FALSE
   isItem := FALSE
+  isWin := FALSE
   isFile := FALSE
   ar := ''
   fi := 0
@@ -194,6 +195,7 @@ PROC showProps(c: PTR TO component)
     IF flags AND PF_FONT THEN fi := c.fontIdx
     IF isUtilityKind(c.kind) AND (c.kind <> CK_MENUSTRIP) THEN isDlg := TRUE
     IF c.kind = CK_MENUITEM THEN isItem := TRUE
+    IF c.kind = CK_WINDOW THEN isWin := TRUE
     IF c.kind = CK_FILEDLG THEN isFile := TRUE
     IF c.kind = CK_USE THEN isUse := TRUE
     IF (isRootKind(c.kind) = FALSE) AND (c.kind <> CK_UTILS) AND (isDlg = FALSE) AND (isMenuKind(c.kind) = FALSE) THEN usable := TRUE
@@ -220,17 +222,22 @@ PROC showProps(c: PTR TO component)
   showFlag(chkFrame, flags, PF_FRAME)
   showFlag(chkSave, flags, PF_SAVE)
   showFlag(chkVert, flags, PF_VERT)
+  showFlag(chkCenter, flags, PF_CENTER)
+  showFlag(chkOpen, flags, PF_OPEN)
   set(strArg, MUIA_String_Contents, ar)
   set(cycFont, MUIA_Cycle_Active, fi)
 
   setEnabled(strWeight, usable)
-  setEnabled(strFixW, usable)
-  setEnabled(strFixH, usable)
+  -> for a window these two are its width and height, and Option is its ID
+  setEnabled(strFixW, usable OR isWin)
+  setEnabled(strFixH, usable OR isWin)
   setEnabled(strHint, usable)
   setEnabled(chkDisabled, usable OR isItem)
   setEnabled(cycFont, usable)
   setEnabled(chkFrame, isGroup)
-  setEnabled(strArg, isDlg OR isUse OR isItem)
+  setEnabled(strArg, isDlg OR isUse OR isItem OR isWin)
+  setEnabled(chkCenter, isWin)
+  setEnabled(chkOpen, isWin)
   setEnabled(chkSave, isFile OR isItem)
   setEnabled(chkVert, isSlider OR isGauge)
   -> a gauge has no minimum; sliders and gauges both have a maximum and a value
@@ -289,7 +296,7 @@ PROC commitProps()
   DEF p, sel, bit, v, ok, h: PTR TO CHAR, i, fnt, a: PTR TO CHAR, ap
   c := selected
   IF c = NIL THEN RETURN
-  IF isRootKind(c.kind) OR (c.kind = CK_UTILS) THEN RETURN
+  IF (c.kind = CK_FRAME) OR (c.kind = CK_UTILS) THEN RETURN
 
   nf := 0
 
@@ -342,7 +349,18 @@ PROC commitProps()
   FOR i := 0 TO StrLen(a) - 1
     IF a[i] = 34 THEN a[i] := 39
   ENDFOR
-  IF (isUtilityKind(c.kind) OR (c.kind = CK_USE) OR (c.kind = CK_MENUITEM)) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
+  IF (isUtilityKind(c.kind) OR (c.kind = CK_USE) OR (c.kind = CK_MENUITEM) OR (c.kind = CK_WINDOW)) AND (StrLen(a) > 0) THEN nf := nf OR PF_ARG
+  IF c.kind = CK_WINDOW
+    -> a window ID is four characters
+    IF StrLen(a) > 4
+      SetStr(a, 4)
+      status('A window ID is four characters: shortened')
+    ENDIF
+    get(chkCenter, MUIA_Selected, {sel})
+    IF sel THEN nf := nf OR PF_CENTER
+    get(chkOpen, MUIA_Selected, {sel})
+    IF sel THEN nf := nf OR PF_OPEN
+  ENDIF
   IF (c.kind = CK_FILEDLG) OR (c.kind = CK_MENUITEM)
     get(chkSave, MUIA_Selected, {sel})
     IF sel THEN nf := nf OR PF_SAVE
@@ -2265,6 +2283,16 @@ PROC makeInspectorPanel()
               Child, chkVert := CheckMark(FALSE),
               Child, HSpace(0),
             End,
+            Child, Label2('Centred:'),
+            Child, HGroup,
+              Child, chkCenter := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
+            Child, Label2('Open at start:'),
+            Child, HGroup,
+              Child, chkOpen := CheckMark(FALSE),
+              Child, HSpace(0),
+            End,
           End,
           Child, VSpace(0),
         End,
@@ -2520,6 +2548,10 @@ PROC connectEvents()
   doMethodA(chkSave, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(chkVert, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(chkCenter, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_PROPS])
+  doMethodA(chkOpen, [MUIM_Notify, MUIA_Selected, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])
   doMethodA(strArg, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_PROPS])

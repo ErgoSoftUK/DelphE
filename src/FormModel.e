@@ -16,7 +16,7 @@ ENUM CK_WINDOW, CK_VGROUP, CK_HGROUP, CK_BUTTON, CK_TEXT, CK_STRING, CK_CHECK,
 
 -> which optional properties a component sets (propFlags); 0 = all defaults
 CONST PF_WEIGHT = 1, PF_FIXW = 2, PF_FIXH = 4, PF_DISABLED = 8, PF_FRAME = 16, PF_HINT = 32,
-      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512, PF_ARG = 1024, PF_SAVE = 2048, PF_VERT = 4096
+      PF_MIN = 64, PF_MAX = 128, PF_VALUE = 256, PF_FONT = 512, PF_ARG = 1024, PF_SAVE = 2048, PF_VERT = 4096, PF_CENTER = 8192, PF_OPEN = 16384
 
 OBJECT component
   kind

@@ -12,7 +12,7 @@ hand-written windows in `src/designer/Designer.e`.
 | Listtree.mcc | component tree | plus drag and drop, which is a custom class |
 | Balance bar | done | `Balance` component; `main.mform` has both bars |
 | Vertical slider | done | the `:vert` property of Slider and Gauge; `main.mform` has the height slider |
-| Window properties | all forms | window ID, size, centred position, open at start |
+| Window properties | done | ID, size, centred and open-at-start; `entries.mform` has the Entries dialog's real ID, size and position. Window events (OnClose) are still to do |
 | Label component | `Text lblX` rows | a frameless, right-aligned label; Label2() and an alignment property |
 | Text alignment | `txtEvent` | `\er` pre-parse, `MUIA_FixWidthTxt` |
 | Editor options | memo components | fixed font, plain export, read-only |
