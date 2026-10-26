@@ -1,0 +1,60 @@
+Window Mixer "Amiga Mixer" :arg="MIXR" :fixw=560 :fixh=380 :center @OnClose=windowClose
+  VGroup root
+    Pages tabs "Mixer|Equaliser|Output"
+      VGroup mixerPage
+        HGroup strips
+          VGroup col1
+            Text lblCh1 "Paula 0" :weight=0
+            Use ch1 :arg="ChannelStrip.mframe"
+          VGroup col2
+            Text lblCh2 "Paula 1" :weight=0
+            Use ch2 :arg="ChannelStrip.mframe"
+          VGroup col3
+            Text lblCh3 "Paula 2" :weight=0
+            Use ch3 :arg="ChannelStrip.mframe"
+          VGroup col4
+            Text lblCh4 "Paula 3" :weight=0
+            Use ch4 :arg="ChannelStrip.mframe"
+      VGroup eqPage
+        ColGroup eq :value=2
+          Text lblBass "Bass:" :weight=0
+          Slider sldBass :min=-12 :max=12 :value=0
+          Text lblMid "Mid:" :weight=0
+          Slider sldMid :min=-12 :max=12 :value=0
+          Text lblTreble "Treble:" :weight=0
+          Slider sldTreble :min=-12 :max=12 :value=0
+          Text lblPreset "Preset:" :weight=0
+          Cycle cycPreset "Flat|Rock|Jazz|Classical" @OnChange=cycPresetChange
+        Spacer eqFill
+      VGroup outPage
+        ColGroup out :value=2
+          Text lblOutput "Output:" :weight=0
+          Cycle cycOutput "Speakers|Headphones|Line out"
+          Text lblMode "Mode:" :weight=0
+          Radio radMode "Stereo|Mono|Surround"
+          Text lblLoud "Loudness:" :weight=0
+          HGroup loudRow
+            Check chkLoud
+            Spacer loudFill
+          Text lblNotes "Notes:" :weight=0
+          Memo memoNotes "Mix for the demo tape"
+    HGroup footer :weight=0
+      Text txtStatus "Ready" :weight=200
+      Gauge gauMaster :max=100 :value=0 :fixh=18
+  Utilities utilities
+    MenuStrip menuStrip
+      Menu mnuProject "Project"
+        MenuItem mniLoad "Load preset..." @OnSelect=mniLoadSelect :arg="L"
+        MenuItem mniSave "Save preset..." @OnSelect=mniSaveSelect :arg="S"
+        MenuItem mniSep1 "-"
+        MenuItem mniQuit "Quit" @OnSelect=mniQuitSelect :arg="Q"
+      Menu mnuMixer "Mixer"
+        MenuItem mniReset "Reset levels" @OnSelect=mniResetSelect :arg="R"
+        MenuItem mniMuteAll "Mute all" @OnSelect=mniMuteAllSelect :arg="M" :save
+      Menu mnuHelp "Help"
+        MenuItem mniAbout "About" @OnSelect=mniAboutSelect
+    FileDialog fdlgPreset "Choose a preset" :arg="#?.preset"
+    FileDialog fdlgSave "Save preset as" :arg="#?.preset" :save
+    MessageDialog mdlgAbout "Amiga Mixer - made with DelphE" :arg="Nice"
+    MessageDialog mdlgQuit "Leave the mixer?" :arg="Leave|Stay"
+    Timer tmrMeters :value=120 @OnTimer=tmrMetersTimer

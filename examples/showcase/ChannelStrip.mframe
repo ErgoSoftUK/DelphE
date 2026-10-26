@@ -1,0 +1,8 @@
+Frame ChannelStrip
+  VGroup root
+    HGroup meters
+      Gauge gauLevel :max=100 :value=0 :vert
+      Slider sldVol :min=0 :max=100 :value=70 :vert :hint="Volume"
+    HGroup muteRow :weight=0
+      Check chkMute @OnChange=chkMuteChange :hint="Mute this channel"
+      Text lblMute "Mute"
