@@ -22,11 +22,11 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
-- **Code, Globals and Modules:** the Code tab has three editors, as tabs: your procedures (Code), your
-  global variables, constants and object types (Globals), and the header with OPT and MODULE lines
-  (Modules). They are saved as one plain E file; the generated code is inserted between Globals and
-  Code, which is why E wants the globals in their own part: every global `DEF` has to come before the
-  first `PROC`. Compile errors and Edit jump to the right tab.
+- **Modules, globals and code:** the Code tab shows all three at once: the module list as one line with a
+  `...` button (a small dialog, one module per line), a small editor for your global variables, constants
+  and object types, and the code editor. They are saved as one plain E file; the generated code is
+  inserted between the globals and the code, which is why E wants the globals in their own part: every
+  global `DEF` has to come before the first `PROC`. Compile errors and Edit jump to the right place.
 - **Window close and timers:** a window has an `OnClose` event (set a handler on the window in the tree):
   it runs when the close gadget is clicked, and the window then closes (the main form ends the program,
   another form hides) unless the handler sets `self.keepOpen := TRUE`. Your handlers can call

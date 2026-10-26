@@ -1,0 +1,6 @@
+Window CodeEditor "New Form"
+  VGroup root
+    Text lblHello "'muimaster', 'libraries/mui', 'utility/tagitem'"
+    Memo mem1 "DEF a, b, c"
+    Balance bal1 "DEF"
+    Memo mem2 "PROC test"

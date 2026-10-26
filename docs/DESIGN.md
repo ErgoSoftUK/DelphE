@@ -192,7 +192,10 @@ PROC handleEvent(id) OF tMainForm   -> SELECT id, call the handler methods
 ```
 
 - **Three parts.** The user's file is cut into modules, globals and code by `splitSections` in
-  UserFile.e and put back by `joinSections`; the Code tab shows them in three editors. The file keeps
+  UserFile.e and put back by `joinSections`; the Code tab shows them together: the modules as a
+  one-line list (`parseModules` keeps the header comment and OPT lines aside and extracts the names;
+  `buildModules` writes one wrapped `MODULE` statement back), the globals in a small editor, and the
+  code. The file keeps
   two marker lines, `->>> DELPHE GLOBALS` and `->>> DELPHE GENERATED CODE`. Files from before the
   first marker are split by guessing (everything up to the last `MODULE` statement is modules, the
   rest above the generated code is globals). Line numbers of the file map back to an editor through

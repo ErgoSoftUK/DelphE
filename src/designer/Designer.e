@@ -20,7 +20,7 @@ ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
-     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK, ID_TREEDBL
+     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK, ID_TREEDBL, ID_MODULES
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
@@ -51,7 +51,7 @@ DEF inspPanel, inspBalance, inspShown, pages, pageTitles, cycFont, winEntries, e
     app, win, tree, strName, strTitle, txtKind, txtStatus,
     previewWin,
     txtEvent, strHandler, btnDefHandler, btnEditHandler,
-    editor, slider, edGlobals, slGlobals, edModules, slModules, codePages, secGlobStart, secCodeStart, secHas, txtCodePath,
+    editor, slider, edGlobals, slGlobals, modPre, modNames, modDirty, modDisplay, txtModules, btnModules, entriesMode, lblEntries, secGlobStart, secCodeStart, secHas, txtCodePath,
     logEditor, logSlider,
     strWeight, strFixW, strFixH, strMin, strMax, strValue, strHint, chkDisabled, chkFrame, strArg, lblArg, lblValue, chkSave, chkVert, chkCenter, chkOpen, numBuf,
     dirty, titleBuf1, titleBuf2, titleFlip,
@@ -612,14 +612,29 @@ PROC setEditorText(ed, text, len)
 ENDPROC
 
 -> Loads the program file into the three editors (or clears them if there is none)
+-> Sets the module list (the memory is owned by the designer from now on) and shows it
+PROC setModules(pre, names)
+  IF modPre THEN FreeVec(modPre)
+  IF modNames THEN FreeVec(modNames)
+  modPre := pre
+  modNames := names
+  IF names
+    modDisplay := moduleDisplay(names)
+  ELSE
+    modDisplay := NIL
+  ENDIF
+  -> the old display string is not freed: the text gadget may keep the pointer
+  IF modDisplay THEN set(txtModules, MUIA_Text_Contents, modDisplay) ELSE set(txtModules, MUIA_Text_Contents, '')
+ENDPROC
+
 PROC loadCode()
-  DEF path, buf, len, s: PTR TO sections
+  DEF path, buf, len, s: PTR TO sections, pre, names
   path := outputPath()
   buf, len := readAll(path)
   IF buf = NIL
     set(editor, MUIA_TextEditor_Contents, '')
     set(edGlobals, MUIA_TextEditor_Contents, '')
-    set(edModules, MUIA_TextEditor_Contents, '')
+    setModules(NIL, NIL)
     secHas := FALSE
     secGlobStart := 0
     secCodeStart := 0
@@ -629,7 +644,8 @@ PROC loadCode()
     -> the editors get the source with syntax colours; saveCode takes them out again
     setEditorText(editor, s.codeText, s.codeLen)
     setEditorText(edGlobals, s.globText, s.globLen)
-    setEditorText(edModules, s.modText, s.modLen)
+    pre, names := parseModules(s.modText, s.modLen)
+    setModules(pre, names)
     secHas := s.hasMarker
     secGlobStart := s.globStart
     secCodeStart := s.codeStart
@@ -639,7 +655,7 @@ PROC loadCode()
   ENDIF
   set(editor, MUIA_TextEditor_HasChanged, FALSE)
   set(edGlobals, MUIA_TextEditor_HasChanged, FALSE)
-  set(edModules, MUIA_TextEditor_HasChanged, FALSE)
+  modDirty := FALSE
 ENDPROC
 
 -> An editor's text without the syntax colours, as memory to free, or NIL
@@ -654,14 +670,18 @@ PROC saveCode()
   DEF c1, c2, c3, mod, glob, code, out, olen, fh, path
   get(editor, MUIA_TextEditor_HasChanged, {c1})
   get(edGlobals, MUIA_TextEditor_HasChanged, {c2})
-  get(edModules, MUIA_TextEditor_HasChanged, {c3})
+  c3 := modDirty
   IF (c1 = FALSE) AND (c2 = FALSE) AND (c3 = FALSE) THEN RETURN
   path := outputPath()
   -> with no file there is nothing the editors could belong to
   IF canOpen(path) = FALSE THEN RETURN
   code := exportEditor(editor)
   glob := exportEditor(edGlobals)
-  mod := exportEditor(edModules)
+  IF modNames = NIL
+    mod := buildModules('', '')
+  ELSE
+    mod := buildModules(modPre, modNames)
+  ENDIF
   IF (code = NIL) OR (glob = NIL) OR (mod = NIL)
     IF code THEN FreeVec(code)
     IF glob THEN FreeVec(glob)
@@ -683,7 +703,7 @@ PROC saveCode()
       Close(fh)
       set(editor, MUIA_TextEditor_HasChanged, FALSE)
       set(edGlobals, MUIA_TextEditor_HasChanged, FALSE)
-      set(edModules, MUIA_TextEditor_HasChanged, FALSE)
+      modDirty := FALSE
     ELSE
       status('Could not write the code file')
     ENDIF
@@ -698,14 +718,12 @@ ENDPROC
 PROC showFileLine(line)
   showCode()
   IF (secHas = FALSE) OR (line >= secCodeStart)
-    set(codePages, MUIA_Group_ActivePage, 0)
     set(editor, MUIA_TextEditor_CursorY, line - secCodeStart)
   ELSEIF line >= secGlobStart
-    set(codePages, MUIA_Group_ActivePage, 1)
     set(edGlobals, MUIA_TextEditor_CursorY, line - secGlobStart)
   ELSE
-    set(codePages, MUIA_Group_ActivePage, 2)
-    set(edModules, MUIA_TextEditor_CursorY, line)
+    -> the header is not an editor: say where the problem is
+    status('The problem is in the header (OPT and MODULE lines): use the ... button by the module list')
   ENDIF
 ENDPROC
 
@@ -713,7 +731,7 @@ ENDPROC
 PROC activeEditor()
   DEF o
   get(win, MUIA_Window_ActiveObject, {o})
-  IF (o = edGlobals) OR (o = edModules) THEN RETURN o
+  IF o = edGlobals THEN RETURN o
 ENDPROC editor
 
 -> The text for the log pane: a warning about the orphaned handlers, then more
@@ -2171,16 +2189,8 @@ PROC makeEditors()
     MUIA_TextEditor_ExportHook, MUIV_TextEditor_ExportHook_Plain,
     MUIA_TextEditor_Slider, slGlobals,
   End
-  slModules := ScrollbarObject,
-    MUIA_Group_Horiz, FALSE,
-  End
-  edModules := TextEditorObject,
-    MUIA_TextEditor_ExportHook, MUIV_TextEditor_ExportHook_Plain,
-    MUIA_TextEditor_Slider, slModules,
-  End
-  IF (edGlobals = NIL) OR (edModules = NIL) THEN Raise('Could not create the editors')
+  IF edGlobals = NIL THEN Raise('Could not create the editors')
   set(edGlobals, MUIA_TextEditor_FixedFont, MUI_TRUE)
-  set(edModules, MUIA_TextEditor_FixedFont, MUI_TRUE)
 
   logSlider := ScrollbarObject,
     MUIA_Group_Horiz, FALSE,
@@ -2502,24 +2512,32 @@ PROC makeEditorPanel()
     End,
     Child, VGroup,
       Child, txtCodePath := TextObject, TextFrame, MUIA_Text_Contents, '', End,
-      Child, codePages := RegisterGroup(['Code', 'Globals', 'Modules', NIL]),
-        MUIA_Weight, 80,
-        MUIA_Register_Frame, MUI_TRUE,
-        Child, HGroup,
-          MUIA_Group_Spacing, 0,
-          Child, editor,
-          Child, slider,
+      -> the modules as one line with a button for the list, the global variables in a
+      -> small editor, and the code, all at once
+      Child, HGroup,
+        MUIA_Weight, 0,
+        Child, txtModules := TextObject, TextFrame, MUIA_Text_Contents, '', End,
+        Child, btnModules := TextObject, ButtonFrame,
+          MUIA_Weight, 0,
+          MUIA_Text_Contents, '...',
+          MUIA_Text_PreParse, '\ec',
+          MUIA_InputMode, MUIV_InputMode_RelVerify,
+          MUIA_Background, MUII_ButtonBack,
+          MUIA_FixWidthTxt, 'WWW',
         End,
-        Child, HGroup,
-          MUIA_Group_Spacing, 0,
-          Child, edGlobals,
-          Child, slGlobals,
-        End,
-        Child, HGroup,
-          MUIA_Group_Spacing, 0,
-          Child, edModules,
-          Child, slModules,
-        End,
+      End,
+      Child, HGroup,
+        MUIA_Weight, 15,
+        MUIA_Group_Spacing, 0,
+        Child, edGlobals,
+        Child, slGlobals,
+      End,
+      Child, BalanceObject, End,
+      Child, HGroup,
+        MUIA_Weight, 65,
+        MUIA_Group_Spacing, 0,
+        Child, editor,
+        Child, slider,
       End,
       Child, HGroup,
         MUIA_Weight, 20,
@@ -2553,7 +2571,7 @@ PROC makeEntriesWindow()
     MUIA_Window_Width, 260,
     MUIA_Window_Height, 220,
     WindowContents, VGroup,
-      Child, TextObject, MUIA_Text_Contents, 'One entry per line:', End,
+      Child, lblEntries := TextObject, MUIA_Text_Contents, 'One entry per line:', End,
       Child, HGroup,
         MUIA_Group_Spacing, 0,
         Child, entriesEditor,
@@ -2623,23 +2641,91 @@ PROC openEntries()
   c := selected
   IF c = NIL THEN RETURN
   IF (c.kind <> CK_CYCLE) AND (c.kind <> CK_RADIO) AND (c.kind <> CK_LIST) AND (c.kind <> CK_PAGES) THEN RETURN
+  entriesMode := 0
+  set(lblEntries, MUIA_Text_Contents, 'One entry per line:')
+  set(winEntries, MUIA_Window_Title, 'Entries')
   set(entriesEditor, MUIA_TextEditor_Contents, itemsToLines(titleOf(c)))
   set(winEntries, MUIA_Window_Open, MUI_TRUE)
   set(winEntries, MUIA_Window_Activate, MUI_TRUE)
   set(winEntries, MUIA_Window_ActiveObject, entriesEditor)
 ENDPROC
 
--> OK in the entries dialog: the lines become the component's title (its entries)
+-> The ... button by the module list: the same small dialog, one module per line
+PROC openModules()
+  DEF shown
+  entriesMode := 1
+  set(lblEntries, MUIA_Text_Contents, 'One module per line (like muimaster):')
+  set(winEntries, MUIA_Window_Title, 'Modules')
+  IF modNames THEN shown := modNames ELSE shown := ''
+  set(entriesEditor, MUIA_TextEditor_Contents, shown)
+  set(winEntries, MUIA_Window_Open, MUI_TRUE)
+  set(winEntries, MUIA_Window_Activate, MUI_TRUE)
+  set(winEntries, MUIA_Window_ActiveObject, entriesEditor)
+ENDPROC
+
+-> OK in the module dialog: the lines become the module list. Apostrophes and spaces
+-> are dropped, so 'muimaster' typed with quotes is fine.
+PROC applyModules(text)
+  DEF out: PTR TO CHAR, i, len, o, c, pre, copyPre: PTR TO CHAR
+  len := StrLen(text)
+  out := AllocVec(len + 4, MEMF_PUBLIC OR MEMF_CLEAR)
+  IF out = NIL THEN RETURN
+  o := 0
+  FOR i := 0 TO len - 1
+    c := text[i]
+    IF c = 10
+      IF o > 0
+        IF out[o - 1] <> 10
+          out[o] := 10
+          o++
+        ENDIF
+      ENDIF
+    ELSEIF (c <> 39) AND (c > " ")
+      out[o] := c
+      o++
+    ENDIF
+  ENDFOR
+  IF o > 0
+    IF out[o - 1] <> 10
+      out[o] := 10
+      o++
+    ENDIF
+  ENDIF
+  out[o] := 0
+  -> the header comment and OPT lines stay as they were
+  IF modPre THEN pre := copyStrMem(modPre) ELSE pre := copyStrMem('')
+  setModules(pre, out)
+  modDirty := TRUE
+  status('Module list changed (saved with the code)')
+ENDPROC
+
+-> OK in the entries dialog: the lines become the component's title (its entries), or the
+-> module list
 PROC applyEntries()
   DEF text, items
   text := doMethodA(entriesEditor, [MUIM_TextEditor_ExportText])
   IF text = NIL THEN RETURN
+  set(winEntries, MUIA_Window_Open, FALSE)
+  IF entriesMode = 1
+    applyModules(text)
+    FreeVec(text)
+    RETURN
+  ENDIF
   items := linesToItems(text)
   FreeVec(text)
-  set(winEntries, MUIA_Window_Open, FALSE)
   set(strTitle, MUIA_String_Contents, items)
   onTitle()
 ENDPROC
+
+-> A copy of a string as memory to free with FreeVec()
+PROC copyStrMem(s)
+  DEF out: PTR TO CHAR, n
+  n := StrLen(s)
+  out := AllocVec(n + 2, MEMF_PUBLIC OR MEMF_CLEAR)
+  IF out
+    IF n > 0 THEN CopyMem(s, out, n)
+  ENDIF
+ENDPROC out
 
 PROC makeApplication()
   IF (win = NIL) OR (winEntries = NIL) THEN Raise('Failed to create the window')
@@ -2669,6 +2755,8 @@ PROC connectEvents()
     app, 2, MUIM_Application_ReturnID, ID_SIZE])
   doMethodA(btnEntries, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_ENTRIES])
+  doMethodA(btnModules, [MUIM_Notify, MUIA_Pressed, FALSE,
+    app, 2, MUIM_Application_ReturnID, ID_MODULES])
   doMethodA(btnEntriesOk, [MUIM_Notify, MUIA_Pressed, FALSE,
     app, 2, MUIM_Application_ReturnID, ID_ENTRIESOK])
   doMethodA(btnEntriesCancel, [MUIM_Notify, MUIA_Pressed, FALSE,
@@ -2828,6 +2916,8 @@ PROC handleId(id)
         resizePreview()
       CASE ID_ENTRIES
         openEntries()
+      CASE ID_MODULES
+        openModules()
       CASE ID_ENTRIESOK
         applyEntries()
     ENDSELECT

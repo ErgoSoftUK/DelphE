@@ -1,3 +1,4 @@
 Project "DelphEself"
 Form "main.mform"
 Form "entries.mform"
+Form "CodeEditor.mform"
