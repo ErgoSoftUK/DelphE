@@ -33,3 +33,35 @@ Window DelphEMain "DelphE Designer"
           Memo memoCode "" :weight=80
           Memo memoLog "" :weight=20
     Text txtStatus "" :weight=0
+  Utilities utilities
+    MenuStrip menuStrip
+      Menu mnuProject "Project"
+        MenuItem mniNewProject "New project..." @OnSelect=mniNewProjectSelect
+        MenuItem mniOpenProject "Open project..." @OnSelect=mniOpenProjectSelect
+        MenuItem mniSep1 "-"
+        MenuItem mniNewForm "New form..." @OnSelect=mniNewFormSelect :arg="N"
+        MenuItem mniOpenForm "Open form..." @OnSelect=mniOpenFormSelect :arg="O"
+        MenuItem mniRemoveForm "Remove form from project" @OnSelect=mniRemoveFormSelect
+        MenuItem mniMakeMain "Make main form" @OnSelect=mniMakeMainSelect
+        MenuItem mniSep2 "-"
+        MenuItem mniSave "Save" @OnSelect=mniSaveSelect :arg="S"
+        MenuItem mniSaveAs "Save As..." @OnSelect=mniSaveAsSelect :arg="A"
+        MenuItem mniSep3 "-"
+        MenuItem mniQuit "Quit" @OnSelect=mniQuitSelect :arg="Q"
+      Menu mnuEdit "Edit"
+        MenuItem mniUndo "Undo" @OnSelect=mniUndoSelect :arg="Z"
+        MenuItem mniRedo "Redo" @OnSelect=mniRedoSelect :arg="Y"
+        MenuItem mniSep4 "-"
+        MenuItem mniDeleteComponent "Delete component" @OnSelect=mniDeleteComponentSelect :arg="D"
+        MenuItem mniMoveUp "Move up" @OnSelect=mniMoveUpSelect :arg="U"
+        MenuItem mniMoveDown "Move down" @OnSelect=mniMoveDownSelect :arg="J"
+      Menu mnuBuild "Build"
+        MenuItem mniPreview "Preview form" @OnSelect=mniPreviewSelect :arg="P"
+        MenuItem mniSep5 "-"
+        MenuItem mniGenerate "Generate code" @OnSelect=mniGenerateSelect :arg="G"
+        MenuItem mniBuild "Build" @OnSelect=mniBuildSelect :arg="B"
+        MenuItem mniRun "Run" @OnSelect=mniRunSelect :arg="R"
+      Menu mnuView "View"
+        MenuItem mniFormTab "Form tab" @OnSelect=mniFormTabSelect :arg="1"
+        MenuItem mniCodeTab "Code tab" @OnSelect=mniCodeTabSelect :arg="2"
+        MenuItem mniInspector "Show/hide object inspector" @OnSelect=mniInspectorSelect :arg="3"

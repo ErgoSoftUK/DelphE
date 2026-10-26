@@ -7,7 +7,7 @@ hand-written windows in `src/designer/Designer.e`.
 
 | Gap | Where it shows | Notes |
 |-----|----------------|-------|
-| Menu strip | done | MenuStrip, Menu and MenuItem components (see examples/menus.mform); `main.mform` could now get its Project, Edit, Build and View menus |
+| Menu strip | done | `main.mform` now has the Project, Edit, Build and View menus, as MenuStrip, Menu and MenuItem components |
 | Toolbar.mcc | action toolbar, the four palette tabs | needs an image-strip property and a button list |
 | Listtree.mcc | component tree | plus drag and drop, which is a custom class |
 | Balance bar | between inspector and editor, and inside the inspector | easy: a MUI built-in |
