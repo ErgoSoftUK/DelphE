@@ -21,7 +21,7 @@ Frame PropertiesPanel
       String strMax ""
       Text lblValue "Value/columns:" :weight=0
       String strValue ""
-      Text lblHint "Hint:" :weight=0
+      Text lblHint "Tootlip:" :weight=0
       String strHint ""
       Text lblFont "Font:" :weight=0
       Cycle cycFont "Default|Normal|Tiny|Big|Title|Fixed|List|Button" @OnChange=cycFontChange

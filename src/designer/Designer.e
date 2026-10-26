@@ -20,7 +20,7 @@ ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
      ID_DELETE, ID_UP, ID_DOWN, ID_GENERATE,
      ID_HANDLER, ID_DEFHANDLER, ID_EDITHANDLER, ID_COMPILE, ID_RUN, ID_NEW, ID_OPEN, ID_SAVEAS, ID_PROPS,
      ID_SHOWFORM, ID_SHOWINSP, ID_SHOWCODE, ID_TITLEDONE, ID_UNDO, ID_REDO, ID_TREEDROP,
-     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK
+     ID_NEWPROJ, ID_OPENPROJ, ID_FORMSEL, ID_REMOVEFORM, ID_MAKEMAIN, ID_SIZE, ID_ENTRIES, ID_ENTRIESOK, ID_TREEDBL
 
 -> palette buttons send ID_PALETTE + the index of their component kind
 CONST ID_PALETTE = 100
@@ -1226,6 +1226,21 @@ PROC runCode()
   status('Started')
 ENDPROC
 
+-> A double click on a component in the tree goes to its handler in the code: a
+-> component with an event gets the default handler name first if it has none
+PROC onTreeDoubleClick()
+  DEF c: PTR TO component
+  commitEdits()
+  c := selected
+  IF c = NIL THEN RETURN
+  IF eventName(c.kind) = NIL
+    status('That component has no events')
+    RETURN
+  ENDIF
+  IF c.handler = NIL THEN onDefaultHandler()
+  doEditHandler()
+ENDPROC
+
 PROC doEditHandler()
   DEF c: PTR TO component
   commitEdits()
@@ -2404,6 +2419,8 @@ PROC connectEvents()
     winEntries, 3, MUIM_Set, MUIA_Window_Open, FALSE])
   doMethodA(tree, [MUIM_Notify, MUIA_Listtree_Active, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_SELECT])
+  doMethodA(tree, [MUIM_Notify, MUIA_Listtree_DoubleClick, MUIV_EveryTime,
+    app, 2, MUIM_Application_ReturnID, ID_TREEDBL])
   doMethodA(strName, [MUIM_Notify, MUIA_String_Acknowledge, MUIV_EveryTime,
     app, 2, MUIM_Application_ReturnID, ID_NAME])
   doMethodA(strTitle, [MUIM_Notify, MUIA_String_Contents, MUIV_EveryTime,
@@ -2497,6 +2514,8 @@ PROC handleId(id)
         commitProps()
       CASE ID_EDITHANDLER
         doEditHandler()
+      CASE ID_TREEDBL
+        onTreeDoubleClick()
       CASE ID_NEW
         doNew()
       CASE ID_OPEN
