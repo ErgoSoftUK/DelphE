@@ -22,7 +22,52 @@ CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
 DEF oldLoop, genMainName, orphanList, evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
 
-PROC put(fh, s) IS Write(fh, s, StrLen(s))
+-> Output is collected in memory and written in big pieces: the generator makes thousands of
+-> tiny writes (a word, a quote, two spaces of indent), and each would be a call to the file
+-> system. Everything for one file goes through put(), putc() and putMem(), and the file is
+-> closed with closeOut(), which writes what is left.
+DEF obuf: PTR TO CHAR, olen, ocap, ofh, oneChar[4]: ARRAY OF CHAR
+
+PROC outFlush()
+  IF (ofh <> NIL) AND (olen > 0) THEN Write(ofh, obuf, olen)
+  olen := 0
+ENDPROC
+
+PROC putMem(fh, p: PTR TO CHAR, n)
+  IF n <= 0 THEN RETURN
+  IF fh <> ofh
+    outFlush()
+    ofh := fh
+  ENDIF
+  IF obuf = NIL
+    obuf := AllocVec(16384, MEMF_PUBLIC)
+    IF obuf THEN ocap := 16384
+  ENDIF
+  IF (obuf = NIL) OR (n > ocap)
+    outFlush()
+    Write(fh, p, n)
+    RETURN
+  ENDIF
+  IF (olen + n) > ocap THEN outFlush()
+  CopyMem(p, obuf + olen, n)
+  olen := olen + n
+ENDPROC
+
+PROC put(fh, s)
+  putMem(fh, s, StrLen(s))
+ENDPROC
+
+PROC putc(fh, c)
+  oneChar[0] := c
+  putMem(fh, oneChar, 1)
+ENDPROC
+
+-> Writes what is left and closes the file
+PROC closeOut(fh)
+  outFlush()
+  Close(fh)
+  ofh := NIL
+ENDPROC
 
 PROC putNum(fh, n)
   DEF s
@@ -39,24 +84,23 @@ ENDPROC
 
 -> E strings are single-quoted; \a is an apostrophe
 PROC quoted(fh, s)
-  DEF i, ch
+  DEF i, ch, run
   IF s = NIL THEN s := ''
   put(fh, '\a')
+  run := 0
   FOR i := 0 TO StrLen(s) - 1
     ch := s[i]
     -> inside an E string literal an apostrophe is \a and a backslash is \\
-    IF ch = 39
-      put(fh, '\\a')
-    ELSEIF ch = 92
-      put(fh, '\\\\')
-    ELSE
-      Out(fh, ch)
+    IF (ch = 39) OR (ch = 92)
+      putMem(fh, s + run, i - run)
+      IF ch = 39 THEN put(fh, '\\a') ELSE put(fh, '\\\\')
+      run := i + 1
     ENDIF
   ENDFOR
+  putMem(fh, s + run, StrLen(s) - run)
   put(fh, '\a')
 ENDPROC
 
--> ", MUIA_Weight, 3"-style tag with a number
 PROC putPair(fh, text, n)
   put(fh, text)
   putNum(fh, n)
@@ -941,6 +985,30 @@ ENDPROC
 
 /*** the user's part ***/
 
+-> The bytes the stubs of c's handlers (and of everything under it) could take at most
+PROC stubBytes(c: PTR TO component)
+  DEF ch: PTR TO component, n
+  n := 0
+  IF c.handler
+    IF eventName(c.kind) THEN n := StrLen(c.handler) + StrLen(c.name) + 200
+  ENDIF
+  ch := c.firstChild
+  WHILE ch
+    n := n + stubBytes(ch)
+    ch := ch.next
+  ENDWHILE
+ENDPROC n
+
+-> The size of the string that collects the stubs for these forms
+PROC stubSpace(forms: PTR TO LONG, n)
+  DEF i, total, win: PTR TO component
+  total := 256
+  FOR i := 0 TO n - 1
+    win := forms[i]
+    total := total + stubBytes(win) + StrLen(win.name)
+  ENDFOR
+ENDPROC total
+
 -> Appends to 'appended' a stub for every handler that buf does not define yet
 PROC collectStubs(c: PTR TO component, buf, appended, win: PTR TO component)
   DEF ch: PTR TO component, sig
@@ -1213,6 +1281,7 @@ PROC stripRegions(buf, len)
   CopyMem(buf + p, out + o, len - p)
   o := o + (len - p)
   out[o] := 0
+  DisposeLink(num)
 ENDPROC out, o
 
 PROC isIdentCh(c) IS ((c >= "A") AND (c <= "Z")) OR ((c >= "a") AND (c <= "z")) OR ((c >= "0") AND (c <= "9")) OR (c = "_")
@@ -1290,9 +1359,9 @@ ENDPROC FALSE
 ** GEN_NOMARKERS (the file has neither marker, so it is not one of ours).
 */
 PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
-  DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended, old
+  DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended, old, res
 
-  appended := String(30000)
+  appended := String(stubSpace(forms, n))
   orphanList := NIL
   oldLoop := FALSE
   buf, len := readAll(path)
@@ -1303,45 +1372,63 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
       collectStubs(win, '', appended, win)
     ENDFOR
     fh := Open(path, MODE_NEWFILE)
-    IF fh = NIL THEN RETURN GEN_WRITEFAIL
+    IF fh = NIL
+      DisposeLink(appended)
+      RETURN GEN_WRITEFAIL
+    ENDIF
     win := forms[0]
     IF projName THEN genProjectHeader(fh, projName) ELSE genHeader(fh, win)
     put(fh, '\n/*** your code ***/\n')
     put(fh, appended)
     IF projName THEN genProjectMain(fh) ELSE genMain(fh, win)
-    Close(fh)
+    closeOut(fh)
+    DisposeLink(appended)
     RETURN GEN_OK
   ENDIF
 
+  res := GEN_OK
   old := FALSE
   cur := buf
   clen := len
   IF InStr(buf, beginMark()) <> -1
     cur, clen := stripRegions(buf, len)
-    IF cur = NIL THEN RETURN GEN_NOMARKERS
-    old := TRUE
+    IF cur = NIL
+      res := GEN_NOMARKERS
+    ELSE
+      old := TRUE
+    ENDIF
   ELSEIF InStr(buf, userMark()) = -1
-    RETURN GEN_NOMARKERS
+    res := GEN_NOMARKERS
   ENDIF
 
-  scanOrphans(cur, forms, n)
-  oldLoop := FALSE
-  IF InStr(cur, 'delpheRun()') = -1
-    IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN oldLoop := TRUE
+  IF res = GEN_OK
+    scanOrphans(cur, forms, n)
+    oldLoop := FALSE
+    IF InStr(cur, 'delpheRun()') = -1
+      IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN oldLoop := TRUE
+    ENDIF
+    FOR i := 0 TO n - 1
+      win := forms[i]
+      collectStubs(win, cur, appended, win)
+    ENDFOR
+    IF (old OR (StrLen(appended) > 0))
+      IF old THEN writeBackup(path, buf, len)
+      fh := Open(path, MODE_NEWFILE)
+      IF fh = NIL
+        res := GEN_WRITEFAIL
+      ELSE
+        putMem(fh, cur, clen)
+        put(fh, appended)
+        closeOut(fh)
+      ENDIF
+    ENDIF
   ENDIF
-  FOR i := 0 TO n - 1
-    win := forms[i]
-    collectStubs(win, cur, appended, win)
-  ENDFOR
-  IF (old = FALSE) AND (StrLen(appended) = 0) THEN RETURN GEN_OK
 
-  IF old THEN writeBackup(path, buf, len)
-  fh := Open(path, MODE_NEWFILE)
-  IF fh = NIL THEN RETURN GEN_WRITEFAIL
-  Write(fh, cur, clen)
-  put(fh, appended)
-  Close(fh)
-ENDPROC GEN_OK
+  -> the file was read for this one job: give its memory back
+  IF (cur <> NIL) AND (cur <> buf) THEN Dispose(cur)
+  Dispose(buf)
+  DisposeLink(appended)
+ENDPROC res
 
 -> Writes the generated file (path.gen.e) and updates the user's file. Returns
 -> GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
@@ -1394,12 +1481,22 @@ PROC expandMarks(g: PTR TO CHAR, glen, first, glines, codeLines)
 ENDPROC out, o
 
 PROC buildSource(userPath, buildPath)
-  DEF buf, len, gbuf, glen, m, nx, fh, i, first, glines, cm, codeLine, codeLines
+  DEF buf, len, gbuf, glen, g2, g2len, m, nx, fh, i, first, glines, cm, codeLine, codeLines, gp
+  gp := genPath(userPath)
   buf, len := readAll(userPath)
-  gbuf, glen := readAll(genPath(userPath))
-  IF (buf = NIL) OR (gbuf = NIL) THEN RETURN -1, 0
+  gbuf, glen := readAll(gp)
+  DisposeLink(gp)
+  IF (buf = NIL) OR (gbuf = NIL)
+    IF buf THEN Dispose(buf)
+    IF gbuf THEN Dispose(gbuf)
+    RETURN -1, 0
+  ENDIF
   m := InStr(buf, userMark())
-  IF m = -1 THEN RETURN -1, 0
+  IF m = -1
+    Dispose(buf)
+    Dispose(gbuf)
+    RETURN -1, 0
+  ENDIF
   nx := InStr(buf, '\n', m)
   IF nx = -1 THEN nx := len ELSE nx := nx + 1
 
@@ -1426,17 +1523,24 @@ PROC buildSource(userPath, buildPath)
   FOR i := 0 TO codeLine - 1
     IF buf[i] = 10 THEN codeLines++
   ENDFOR
-  gbuf, glen := expandMarks(gbuf, glen, first, glines, codeLines)
+  g2, g2len := expandMarks(gbuf, glen, first, glines, codeLines)
+  Dispose(gbuf)
 
   fh := Open(buildPath, MODE_NEWFILE)
-  IF fh = NIL THEN RETURN -1, 0
+  IF fh = NIL
+    Dispose(buf)
+    Dispose(g2)
+    RETURN -1, 0
+  ENDIF
   Write(fh, buf, nx)
-  Write(fh, gbuf, glen)
-  IF glen > 0
-    IF gbuf[glen - 1] <> 10 THEN Write(fh, '\n', 1)
+  Write(fh, g2, g2len)
+  IF g2len > 0
+    IF g2[g2len - 1] <> 10 THEN Write(fh, '\n', 1)
   ENDIF
   IF len > nx THEN Write(fh, buf + nx, len - nx)
   Close(fh)
+  Dispose(buf)
+  Dispose(g2)
 ENDPROC first, glines
 
 /*** projects: several forms in one program ***/
@@ -1658,5 +1762,5 @@ PROC generateProject(path, projName, forms: PTR TO LONG, n)
     DisposeLink(tag)
   ENDFOR
   genRunRegion(fh, projName, forms, n)
-  Close(fh)
+  closeOut(fh)
 ENDPROC syncUserFile(path, projName, all, total)

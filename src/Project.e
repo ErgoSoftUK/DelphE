@@ -30,8 +30,13 @@ PROC readProjectFile(path, paths: PTR TO LONG, max)
     WriteF('Cannot open \s\n', path)
     RETURN NIL, 0
   ENDIF
-  line := String(255)
+  line := String(1000)
   WHILE (ReadStr(fh, line) <> -1) OR (StrLen(line) > 0)
+    IF StrLen(line) >= StrMax(line)
+      WriteF('\s: a line is longer than 999 characters\n', path)
+      Close(fh)
+      RETURN NIL, 0
+    ENDIF
     kindTok, pos, quoted := nextToken(line, 0)
     IF kindTok
       valTok, pos, quoted := nextToken(line, pos)

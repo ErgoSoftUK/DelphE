@@ -15,6 +15,10 @@ MODULE 'dos/dos', '*FormModel'
 
 CONST MAXDEPTH = 16
 
+-> the longest line of a form file, and the most properties a component line can carry;
+-> a longer line is refused rather than read in pieces
+CONST LINEMAX = 4000, MAXPROPS = 24
+
 PROC mput(fh, s) IS Write(fh, s, StrLen(s))
 
 /*** writer ***/
@@ -201,8 +205,10 @@ PROC applyProp(c: PTR TO component, tok)
   ELSEIF tokIs(tok, 'hint')
     c.hint := tokString(tok)
     c.propFlags := c.propFlags OR PF_HINT
+  ELSE
+    RETURN FALSE
   ENDIF
-ENDPROC
+ENDPROC TRUE
 
 -> Reads a form; returns the window component, or NIL on error.
 PROC readForm(filename)
@@ -221,9 +227,14 @@ PROC readForm(filename)
     RETURN NIL
   ENDIF
 
-  line := String(255)
+  line := String(LINEMAX)
   WHILE (ReadStr(fh, line) <> -1) OR (StrLen(line) > 0)
     lineNo++
+    IF StrLen(line) >= StrMax(line)
+      WriteF('\s line \d: the line is longer than \d characters\n', filename, lineNo, LINEMAX - 1)
+      Close(fh)
+      RETURN NIL
+    ENDIF
     kindTok, pos := nextToken(line, 0)
 
     IF kindTok
@@ -237,7 +248,7 @@ PROC readForm(filename)
       -> the rest: a quoted title and/or an unquoted @Event=handler
       titleTok := NIL
       handlerTok := NIL
-      propToks := List(16)
+      propToks := List(MAXPROPS)
       REPEAT
         tok, pos, quoted := nextToken(line, pos)
         IF tok
@@ -246,7 +257,11 @@ PROC readForm(filename)
           ELSEIF tok[0] = "@"
             handlerTok := eventHandler(tok)
           ELSEIF tok[0] = ":"
-            IF ListLen(propToks) < 16 THEN ListAdd(propToks, [tok], 1)
+            IF ListLen(propToks) < MAXPROPS
+              ListAdd(propToks, [tok], 1)
+            ELSE
+              WriteF('\s line \d: too many properties, "\s" ignored\n', filename, lineNo, tok)
+            ENDIF
           ELSEIF titleTok = NIL
             titleTok := tok
           ENDIF
@@ -279,7 +294,9 @@ PROC readForm(filename)
       c := newComponent(kind, nameTok, titleTok)
       c.handler := handlerTok
       FOR i := 0 TO ListLen(propToks) - 1
-        applyProp(c, ListItem(propToks, i))
+        IF applyProp(c, ListItem(propToks, i)) = FALSE
+          WriteF('\s line \d: unknown property "\s" ignored\n', filename, lineNo, ListItem(propToks, i))
+        ENDIF
       ENDFOR
       IF level = 0
         IF isRootKind(kind) = FALSE

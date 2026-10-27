@@ -294,7 +294,129 @@ PROC testGenerateKeepsUserCode()
   assertContains('-> mine', buf, 'the user\as own text is not touched')
 ENDPROC
 
+/*** the language ***/
+
+-> The generator builds long texts in E-strings; check what the compiler allows
+PROC testLongEString()
+  DEF s, i, chunk
+  s := String(100000)
+  assertNotNil(s, 'a 100000 byte E-string can be allocated')
+  chunk := 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-0123456789-0123456789-0123456789-ABCD'
+  FOR i := 1 TO 600
+    StrAdd(s, chunk, ALL)
+  ENDFOR
+  assertEquals(600 * StrLen(chunk), StrLen(s), 'all of it was kept')
+ENDPROC
+
+/*** limits: long lines, many handlers, big texts ***/
+
+-> A string of n copies of the character c, then tail
+PROC longText(n, c, tail)
+  DEF s, i
+  s := String(n + StrLen(tail) + 8)
+  FOR i := 0 TO n - 1 DO s[i] := c
+  SetStr(s, n)
+  StrAdd(s, tail, ALL)
+ENDPROC s
+
+PROC testLongTitleRoundTrip()
+  DEF w: PTR TO component, r: PTR TO component, t: PTR TO component, fh, back: PTR TO component
+  makeTestDir()
+  w := newComponent(CK_WINDOW, 'Long', 'A form')
+  r := newComponent(CK_VGROUP, 'root', NIL)
+  w.addChild(r)
+  t := newComponent(CK_TEXT, 'lblLong', longText(1500, "a", 'END'))
+  r.addChild(t)
+  fh := Open('RAM:dunit/long.mform', MODE_NEWFILE)
+  writeForm(fh, w, 0)
+  Close(fh)
+  back := readForm('RAM:dunit/long.mform')
+  assertNotNil(back, 'a line of 1500 characters can be read')
+  r := rootOf(back)
+  t := r.firstChild
+  assertEquals(1503, StrLen(t.title), 'all of the title came back')
+  assertContains('aaaEND', t.title, 'including its end')
+ENDPROC
+
+PROC testLineTooLong()
+  DEF fh, text
+  makeTestDir()
+  text := longText(5000, "b", '"')
+  fh := Open('RAM:dunit/toolong.mform', MODE_NEWFILE)
+  Write(fh, 'Window W "', 10)
+  Write(fh, text, StrLen(text))
+  Write(fh, '\n', 1)
+  Close(fh)
+  assertNil(readForm('RAM:dunit/toolong.mform'), 'a line over the limit is refused, not read in pieces')
+ENDPROC
+
+PROC testUnknownProperty()
+  DEF fh, w: PTR TO component, text
+  makeTestDir()
+  text := 'Window W "T"\n  VGroup root\n    Button b "B" :bogus :weight=5\n'
+  fh := Open('RAM:dunit/unknown.mform', MODE_NEWFILE)
+  Write(fh, text, StrLen(text))
+  Close(fh)
+  w := readForm('RAM:dunit/unknown.mform')
+  assertNotNil(w, 'an unknown property does not stop the form loading')
+  w := rootOf(w).firstChild
+  assertEquals(5, w.weight, 'and the known one next to it is kept')
+ENDPROC
+
+PROC testManyHandlers()
+  DEF w: PTR TO component, r: PTR TO component, b: PTR TO component, i, name, hnd, buf, len
+  makeTestDir()
+  DeleteFile('RAM:dunit/Big.e')
+  DeleteFile('RAM:dunit/Big.gen.e')
+  w := newComponent(CK_WINDOW, 'Big', 'Many')
+  r := newComponent(CK_VGROUP, 'root', NIL)
+  w.addChild(r)
+  FOR i := 1 TO 300
+    name := String(16)
+    StringF(name, 'btn\d', i)
+    hnd := String(24)
+    StringF(hnd, 'btn\dClick', i)
+    b := newComponent(CK_BUTTON, name, 'B')
+    b.handler := hnd
+    r.addChild(b)
+  ENDFOR
+  assertEquals(GEN_OK, generateFile('RAM:dunit/Big.e', w), 'generating works')
+  buf, len := readAll('RAM:dunit/Big.e')
+  assertNotNil(buf, NIL)
+  assertContains('PROC btn1Click() OF tBig', buf, 'the first stub')
+  assertContains('PROC btn300Click() OF tBig', buf, 'the last stub: the stubs buffer was big enough')
+ENDPROC
+
+PROC testBigGeneratedText()
+  DEF w: PTR TO component, r: PTR TO component, buf, len, res
+  makeTestDir()
+  DeleteFile('RAM:dunit/Huge.e')
+  DeleteFile('RAM:dunit/Huge.gen.e')
+  w := newComponent(CK_WINDOW, 'Huge', 'Big text')
+  r := newComponent(CK_VGROUP, 'root', NIL)
+  w.addChild(r)
+  r.addChild(newComponent(CK_TEXT, 'lblHuge', longText(40000, "x", 'THE-END')))
+  res := generateFile('RAM:dunit/Huge.e', w)
+  assertEquals(GEN_OK, res, NIL)
+  buf, len := readAll('RAM:dunit/Huge.gen.e')
+  assertNotNil(buf, NIL)
+  assertTrue(len > 40000, 'a text bigger than the output buffer was written')
+  assertContains('xxxTHE-END', buf, 'complete, to its last character')
+ENDPROC
+
 PROC main()
+  duBegin('Limits')
+  duTest('a long title round trip', {testLongTitleRoundTrip})
+  duTest('a line that is too long', {testLineTooLong})
+  duTest('an unknown property', {testUnknownProperty})
+  duTest('many handlers', {testManyHandlers})
+  duTest('a text bigger than the output buffer', {testBigGeneratedText})
+  duEnd()
+
+  duBegin('Language')
+  duTest('long E-strings', {testLongEString})
+  duEnd()
+
   duBegin('FormModel')
   duTest('kind names', {testKindNames})
   duTest('children', {testChildren})

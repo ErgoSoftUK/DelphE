@@ -650,6 +650,7 @@ PROC loadCode()
     secGlobStart := s.globStart
     secCodeStart := s.codeStart
     freeSections(s)
+    Dispose(buf)
     -> path is not freed: the text gadget may keep the pointer
     set(txtCodePath, MUIA_Text_Contents, path)
   ENDIF
@@ -808,11 +809,16 @@ PROC gotoHandler(c: PTR TO component)
   StrAdd(sig, '() OF t', ALL)
   StrAdd(sig, form.name, ALL)
   p := InStr(buf, sig)
-  IF p = -1 THEN RETURN
+  DisposeLink(sig)
+  IF p = -1
+    Dispose(buf)
+    RETURN
+  ENDIF
   line := 0
   FOR i := 0 TO p - 1
     IF buf[i] = 10 THEN line++
   ENDFOR
+  Dispose(buf)
   showFileLine(line + 1)
 ENDPROC
 
@@ -1362,7 +1368,7 @@ PROC absoluteDir(dir)
 ENDPROC s
 
 PROC compileCode()
-  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct, absd
+  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct, absd, shown
 
   -> bring the generated file up to date first (this also saves the editor)
   IF regenerate() <> GEN_OK THEN RETURN FALSE
@@ -1416,6 +1422,9 @@ PROC compileCode()
   StrAdd(cmd, ' > RAM:delphe-compile-out', ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
+  DisposeLink(cmd)
+  IF absd THEN DisposeLink(absd)
+  DisposeLink(bfile)
 
   buf, len := readAll('RAM:delphe-compile-out')
   IF buf = NIL
@@ -1423,8 +1432,11 @@ PROC compileCode()
     RETURN FALSE
   ENDIF
   clean := cleanOutput(buf, len)
+  Dispose(buf)
   IF orphanNote
-    set(logEditor, MUIA_TextEditor_Contents, logWithOrphans(clean))
+    shown := logWithOrphans(clean)
+    set(logEditor, MUIA_TextEditor_Contents, shown)
+    DisposeLink(shown)
   ELSE
     set(logEditor, MUIA_TextEditor_Contents, clean)
   ENDIF
@@ -1442,7 +1454,9 @@ PROC compileCode()
       StrAdd(cmd, dir, ALL)
       StrAdd(cmd, '\q QUIET', ALL)
       Execute(cmd, 0, 0)
+      DisposeLink(cmd)
     ENDIF
+    Dispose(clean)
     status('Compiled with no errors')
     RETURN TRUE
   ENDIF
@@ -1466,6 +1480,7 @@ PROC compileCode()
   ELSE
     status('Compile failed: see the output below the editor')
   ENDIF
+  Dispose(clean)
 ENDPROC FALSE
 
 PROC runCode()
