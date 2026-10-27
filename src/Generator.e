@@ -1097,6 +1097,21 @@ PROC genRuntimeTypes(fh, forms: PTR TO LONG, n)
 ENDPROC
 
 PROC genRuntimeProcs(fh, forms: PTR TO LONG, n)
+  -> what the program says when it stops on an exception: Raise('text') gives a string, and
+  -> NILCHECK, ARRAYCHECK and STACKCHECK throw a short code with the line it happened on
+  put(fh, 'PROC delpheReport(ex, info)\n  DEF b[8]: ARRAY OF CHAR, i, c, n, ok, line\n  n := 0\n  ok := TRUE\n')
+  put(fh, '  FOR i := 0 TO 3\n    c := Shr(ex, 24 - Mul(i, 8)) AND 255\n')
+  put(fh, '    IF (c = 0) AND (n = 0)\n      -> the code NIL has only three characters\n')
+  put(fh, '    ELSEIF (c < 32) OR (c > 126)\n      ok := FALSE\n    ELSE\n      b[n] := c\n      n++\n    ENDIF\n  ENDFOR\n')
+  put(fh, '  b[n] := 0\n  IF (ok = FALSE) OR (n < 3)\n    WriteF(\a\\s\\n\a, ex)\n    RETURN\n  ENDIF\n')
+  put(fh, '  IF StrCmp(b, \aNIL\a, 3) AND (n = 3)\n    WriteF(\aStopped: a NIL pointer was used\a)\n')
+  put(fh, '  ELSEIF StrCmp(b, \aINDX\a, 4)\n    WriteF(\aStopped: an array index was out of range\a)\n')
+  put(fh, '  ELSEIF StrCmp(b, \aSTCK\a, 4)\n    WriteF(\aStopped: the stack ran out\a)\n')
+  put(fh, '  ELSE\n    WriteF(\aStopped: \\s\a, b)\n  ENDIF\n')
+  put(fh, '  IF info > 0\n    IF info >= (DELPHE_FIRST + DELPHE_LINES)\n      line := info - DELPHE_LINES - DELPHE_CODE\n')
+  put(fh, '      IF line > 0 THEN WriteF(\a, in your code at line \\d of the Code editor\a, line) ELSE WriteF(\a, in your header or globals (line \\d of the file)\a, info - DELPHE_LINES)\n')
+  put(fh, '    ELSEIF info >= DELPHE_FIRST\n      WriteF(\a, in the generated code (line \\d of the .gen.e file)\a, info - DELPHE_FIRST + 1)\n')
+  put(fh, '    ELSE\n      WriteF(\a, in your header (line \\d)\a, info)\n    ENDIF\n  ENDIF\n  WriteF(\a\\n\a)\nENDPROC\n\n')
   IF anyUses(forms, n, CK_FILEDLG)
     put(fh, 'PROC delpheFileDialog(title, pattern, save)\n  DEF d: PTR TO tFileDialog\n  NEW d\n')
     put(fh, '  d.title := title\n  d.pattern := pattern\n  d.drawer := String(260)\n  d.path := String(260)\n  d.save := save\nENDPROC d\n\n')
@@ -1147,6 +1162,10 @@ ENDPROC
 -> The generated file has no module for TextEditor.mcc, so a memo gets its tags as constants
 PROC genConstants(fh, forms: PTR TO LONG, n)
   DEF i, used
+  -> where the generated code sits in the program the compiler sees: buildSource puts
+  -> the numbers in, so that a line in an error message (NILCHECK and the like) can be
+  -> traced back to the user's code
+  put(fh, 'CONST DELPHE_FIRST = @@FIRST@@, DELPHE_LINES = @@LINES@@, DELPHE_CODE = @@CODE@@\n\n')
   used := FALSE
   FOR i := 0 TO n - 1
     IF usesKind(forms[i], CK_MEMO) THEN used := TRUE
@@ -1335,8 +1354,47 @@ ENDPROC generateProject(path, win.name, [win], 1)
 ** and how many lines were inserted, so that compiler messages can be traced
 ** back, or -1, 0 if the files cannot be read or have no marker.
 */
+-> Replaces @@FIRST@@, @@LINES@@ and @@CODE@@ in the generated text with numbers. It stays on
+-> its line, so no line numbers move. Returns the new text and its length.
+PROC expandMarks(g: PTR TO CHAR, glen, first, glines, codeLines)
+  DEF out: PTR TO CHAR, o, i, num: PTR TO CHAR, n
+  out := NewM(glen + 64, MEMF_PUBLIC)
+  num := String(16)
+  o := 0
+  i := 0
+  WHILE i < glen
+    IF (g[i] = "@") AND (g[i + 1] = "@")
+      n := -1
+      IF StrCmp(g + i, '@@FIRST@@', 9)
+        StringF(num, '\d', first)
+        n := 9
+      ELSEIF StrCmp(g + i, '@@LINES@@', 9)
+        StringF(num, '\d', glines)
+        n := 9
+      ELSEIF StrCmp(g + i, '@@CODE@@', 8)
+        StringF(num, '\d', codeLines)
+        n := 8
+      ENDIF
+      IF n > 0
+        CopyMem(num, out + o, StrLen(num))
+        o := o + StrLen(num)
+        i := i + n
+      ELSE
+        out[o] := g[i]
+        o++
+        i++
+      ENDIF
+    ELSE
+      out[o] := g[i]
+      o++
+      i++
+    ENDIF
+  ENDWHILE
+  out[o] := 0
+ENDPROC out, o
+
 PROC buildSource(userPath, buildPath)
-  DEF buf, len, gbuf, glen, m, nx, fh, i, first, glines
+  DEF buf, len, gbuf, glen, m, nx, fh, i, first, glines, cm, codeLine, codeLines
   buf, len := readAll(userPath)
   gbuf, glen := readAll(genPath(userPath))
   IF (buf = NIL) OR (gbuf = NIL) THEN RETURN -1, 0
@@ -1356,6 +1414,19 @@ PROC buildSource(userPath, buildPath)
   IF glen > 0
     IF gbuf[glen - 1] <> 10 THEN glines++
   ENDIF
+
+  -> the line of the user's file that the code starts on (after the "your code" comment)
+  codeLine := nx
+  cm := InStr(buf, '/*** your code ***/', nx)
+  IF cm <> -1
+    codeLine := InStr(buf, '\n', cm)
+    IF codeLine = -1 THEN codeLine := len ELSE codeLine := codeLine + 1
+  ENDIF
+  codeLines := 0
+  FOR i := 0 TO codeLine - 1
+    IF buf[i] = 10 THEN codeLines++
+  ENDFOR
+  gbuf, glen := expandMarks(gbuf, glen, first, glines, codeLines)
 
   fh := Open(buildPath, MODE_NEWFILE)
   IF fh = NIL THEN RETURN -1, 0
@@ -1531,7 +1602,7 @@ PROC genRunRegion(fh, projName, forms: PTR TO LONG, n)
   ENDFOR
   put(fh, '  IF app THEN Mui_DisposeObject(app)\n')
   put(fh, '  IF muimasterbase THEN CloseLibrary(muimasterbase)\n')
-  put(fh, '  IF exception THEN WriteF(\a\\s\\n\a, exception)\n')
+  put(fh, '  IF exception THEN delpheReport(exception, exceptioninfo)\n')
   put(fh, 'ENDPROC\n')
   markLine(fh, FALSE, 'project')
   put(fh, '\n')

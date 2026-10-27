@@ -1325,6 +1325,16 @@ ENDPROC s
 
 -> Is that compiler E-VO? It takes a few extra switches: no progress numbers, and more
 -> workspace for the compiler's buffers (the big programs need it).
+-> Is a debug build asked for? The variable DelphEDebug is set to anything but 0. With E-VO the
+-> program then also checks every NIL pointer, array index and the stack, and stops with the
+-> line it happened on; its console window stays open so that the message can be read.
+PROC debugOn()
+  DEF s[4]: ARRAY OF CHAR, n
+  n := GetVar('DelphEDebug', s, 3, 0)
+  IF n <= 0 THEN RETURN FALSE
+  IF s[0] = "0" THEN RETURN FALSE
+ENDPROC TRUE
+
 PROC isEvo(name)
   IF StrLen(name) < 3 THEN RETURN FALSE
   IF (name[StrLen(name) - 3] = "e") OR (name[StrLen(name) - 3] = "E")
@@ -1335,14 +1345,18 @@ PROC isEvo(name)
 ENDPROC FALSE
 
 PROC compileCode()
-  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp
+  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct
 
   -> bring the generated file up to date first (this also saves the editor)
   IF regenerate() <> GEN_OK THEN RETURN FALSE
 
   comp := compilerName()
   msg := String(60)
-  StringF(msg, 'Compiling with \s...', comp)
+  IF isEvo(comp) AND debugOn()
+    StringF(msg, 'Compiling with \s (debug checks)...', comp)
+  ELSE
+    StringF(msg, 'Compiling with \s...', comp)
+  ENDIF
   status(msg)
   dir := outputDir()
 
@@ -1362,12 +1376,25 @@ PROC compileCode()
   ENDIF
 
   lock, old := enterDir(bdir)
-  cmd := String(StrLen(programName()) + StrLen(comp) + 80)
+  direct := FALSE
+  cmd := String(StrLen(programName()) * 2 + StrLen(comp) + StrLen(dir) + 160)
   StrCopy(cmd, comp, ALL)
   StrAdd(cmd, ' ', ALL)
   StrAdd(cmd, programName(), ALL)
   StrAdd(cmd, ' IGNORECACHE', ALL)
-  IF isEvo(comp) THEN StrAdd(cmd, ' NOPROGRESS ADDBUF 3', ALL)
+  IF isEvo(comp)
+    StrAdd(cmd, ' NOPROGRESS ADDBUF 3', ALL)
+    IF debugOn() THEN StrAdd(cmd, ' NILCHECK ARRAYCHECK STACKCHECK', ALL)
+    -> E-VO can write the program where it belongs, with no copy afterwards (not with the
+    -> current folder, which a path made here would not reach from the work drawer)
+    IF StrLen(dir) > 0
+      StrAdd(cmd, ' EXENAME \q', ALL)
+      StrAdd(cmd, dir, ALL)
+      StrAdd(cmd, programName(), ALL)
+      StrAdd(cmd, '\q', ALL)
+      direct := TRUE
+    ENDIF
+  ENDIF
   StrAdd(cmd, ' > RAM:delphe-compile-out', ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
@@ -1387,15 +1414,17 @@ PROC compileCode()
   ok := (InStr(clean, 'ERROR:') = -1) AND (InStr(clean, 'no errors') <> -1)
   IF ok
     -> the program goes next to the source, where Run starts it from
-    cmd := String(StrLen(bdir) + StrLen(programName()) + StrLen(dir) + 40)
-    StrCopy(cmd, 'copy \q', ALL)
-    StrAdd(cmd, bdir, ALL)
-    StrAdd(cmd, '/', ALL)
-    StrAdd(cmd, programName(), ALL)
-    StrAdd(cmd, '\q to \q', ALL)
-    StrAdd(cmd, dir, ALL)
-    StrAdd(cmd, '\q QUIET', ALL)
-    Execute(cmd, 0, 0)
+    IF direct = FALSE
+      cmd := String(StrLen(bdir) + StrLen(programName()) + StrLen(dir) + 40)
+      StrCopy(cmd, 'copy \q', ALL)
+      StrAdd(cmd, bdir, ALL)
+      StrAdd(cmd, '/', ALL)
+      StrAdd(cmd, programName(), ALL)
+      StrAdd(cmd, '\q to \q', ALL)
+      StrAdd(cmd, dir, ALL)
+      StrAdd(cmd, '\q QUIET', ALL)
+      Execute(cmd, 0, 0)
+    ENDIF
     status('Compiled with no errors')
     RETURN TRUE
   ENDIF
@@ -1431,7 +1460,7 @@ PROC runCode()
   cmd := String((StrLen(programName()) * 2) + 80)
   StrCopy(cmd, 'run >CON:20/40/500/200/', ALL)
   StrAdd(cmd, programName(), ALL)
-  StrAdd(cmd, '/CLOSE <NIL: ', ALL)
+  IF debugOn() THEN StrAdd(cmd, '/CLOSE/WAIT <NIL: ', ALL) ELSE StrAdd(cmd, '/CLOSE <NIL: ', ALL)
   StrAdd(cmd, programName(), ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)

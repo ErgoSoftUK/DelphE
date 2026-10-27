@@ -25,6 +25,11 @@ source.
 - **Compiler:** Build uses `ec` unless the variable `DelphECompiler` says otherwise: `setenv DelphECompiler evo`
   (and `copy ENV:DelphECompiler ENVARC:` to keep it) builds with E-VO, adding `NOPROGRESS` and
   `ADDBUF 3`. The status line says which compiler is running.
+  With E-VO the program is written straight to your project folder (`EXENAME`), with no copy.
+- **Debug build:** `setenv DelphEDebug 1` (E-VO only) adds `NILCHECK ARRAYCHECK STACKCHECK`: the program
+  then stops on a NIL pointer, an array index out of range or a full stack, and says so with the line it
+  happened on, as a line of the Code editor. Its console window stays open (`/WAIT`) so that you can
+  read it. `setenv DelphEDebug 0` turns it off again.
 - **Modules, globals and code:** the Code tab shows all three at once: the module list as one line with a
   `...` button (a small dialog, one module per line), a small editor for your global variables, constants
   and object types, and the code editor. They are saved as one plain E file; the generated code is

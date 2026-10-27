@@ -307,7 +307,14 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
 E-VO 3.9.4 compiles DelphE and the programs it generates. Differences found: it cannot read E 3.3a's
 `libraries/mui.m` (rebuild it from the source), it needs `ADDBUF 3` for the large programs, it reads
 the `*` in a module path as the current folder (`ec`: the source file's folder), and its modules are
-incompatible with `ec`'s. The designer picks the compiler with the `DelphECompiler` variable
+incompatible with `ec`'s. The generated `delpheRun` reports an exception through `delpheReport`: a string (from `Raise`) is printed as
+before, and the codes NILCHECK, ARRAYCHECK and STACKCHECK throw (`NIL`, `INDX`, `STCK`, with the line
+of the program the compiler saw) are named, and the line translated back. `buildSource` fills
+three constants (`DELPHE_FIRST`, `DELPHE_LINES`, `DELPHE_CODE`) into the generated text, on their own
+line so that no line numbers move: where the generated code starts, how long it is, and where your
+code starts in your file. `DelphEDebug` (`debugOn`) adds the checks, and `EXENAME` makes E-VO write the
+program into the project folder, so the copy step is skipped.
+The designer picks the compiler with the `DelphECompiler` variable
 (`compilerName`, `isEvo`) and adds `NOPROGRESS ADDBUF 3` for E-VO. See the README for setup.
 
 ### How Designer.e is organised
