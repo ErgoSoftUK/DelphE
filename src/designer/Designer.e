@@ -1310,13 +1310,40 @@ ENDPROC
 
 -> Compiles the generated file with ec. On errors, shows the output and puts
 -> the cursor on the offending line. Returns TRUE if it compiled.
+-> Which compiler builds the program: the variable DelphECompiler (ec if it is not
+-> set), as an E-string. For E-VO: setenv DelphECompiler evo
+PROC compilerName()
+  DEF s, n
+  s := String(40)
+  n := GetVar('DelphECompiler', s, 36, 0)
+  IF n > 0
+    SetStr(s, n)
+  ELSE
+    StrCopy(s, 'ec', ALL)
+  ENDIF
+ENDPROC s
+
+-> Is that compiler E-VO? It takes a few extra switches: no progress numbers, and more
+-> workspace for the compiler's buffers (the big programs need it).
+PROC isEvo(name)
+  IF StrLen(name) < 3 THEN RETURN FALSE
+  IF (name[StrLen(name) - 3] = "e") OR (name[StrLen(name) - 3] = "E")
+    IF (name[StrLen(name) - 2] = "v") OR (name[StrLen(name) - 2] = "V")
+      IF (name[StrLen(name) - 1] = "o") OR (name[StrLen(name) - 1] = "O") THEN RETURN TRUE
+    ENDIF
+  ENDIF
+ENDPROC FALSE
+
 PROC compileCode()
-  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl
+  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp
 
   -> bring the generated file up to date first (this also saves the editor)
   IF regenerate() <> GEN_OK THEN RETURN FALSE
 
-  status('Compiling...')
+  comp := compilerName()
+  msg := String(60)
+  StringF(msg, 'Compiling with \s...', comp)
+  status(msg)
   dir := outputDir()
 
   -> ec gets the user's file with the generated file inserted, in a work drawer
@@ -1335,10 +1362,13 @@ PROC compileCode()
   ENDIF
 
   lock, old := enterDir(bdir)
-  cmd := String(StrLen(programName()) + 64)
-  StrCopy(cmd, 'ec ', ALL)
+  cmd := String(StrLen(programName()) + StrLen(comp) + 80)
+  StrCopy(cmd, comp, ALL)
+  StrAdd(cmd, ' ', ALL)
   StrAdd(cmd, programName(), ALL)
-  StrAdd(cmd, ' IGNORECACHE > RAM:delphe-compile-out', ALL)
+  StrAdd(cmd, ' IGNORECACHE', ALL)
+  IF isEvo(comp) THEN StrAdd(cmd, ' NOPROGRESS ADDBUF 3', ALL)
+  StrAdd(cmd, ' > RAM:delphe-compile-out', ALL)
   Execute(cmd, 0, 0)
   leaveDir(lock, old)
 

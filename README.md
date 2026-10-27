@@ -22,6 +22,9 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
+- **Compiler:** Build uses `ec` unless the variable `DelphECompiler` says otherwise: `setenv DelphECompiler evo`
+  (and `copy ENV:DelphECompiler ENVARC:` to keep it) builds with E-VO, adding `NOPROGRESS` and
+  `ADDBUF 3`. The status line says which compiler is running.
 - **Modules, globals and code:** the Code tab shows all three at once: the module list as one line with a
   `...` button (a small dialog, one module per line), a small editor for your global variables, constants
   and object types, and the code editor. They are saved as one plain E file; the generated code is
