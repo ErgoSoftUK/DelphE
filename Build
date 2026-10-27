@@ -27,7 +27,7 @@ ec DUnit >> /build.out
 ec SelfTest >> /build.out
 SelfTest > /tests.out
 cd /tests
-ec Tests >> /build.out
+ec Tests ADDBUF 3 >> /build.out
 Tests >> /tests.out
 cd /
 type build.out

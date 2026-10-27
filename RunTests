@@ -7,7 +7,7 @@ ec DUnit >> /tests.log
 ec SelfTest >> /tests.log
 SelfTest > /tests.out
 cd /tests
-ec Tests >> /tests.log
+ec Tests ADDBUF 3 >> /tests.log
 Tests >> /tests.out
 cd /
 type tests.out

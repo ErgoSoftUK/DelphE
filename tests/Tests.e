@@ -2,7 +2,7 @@
 ** DelphE's own unit tests, written with DUnit. They need no MUI and no screen.
 **
 **   cd tests
-**   ec Tests          (or: evo Tests NOPROGRESS ADDBUF 3)
+**   ec Tests ADDBUF 3 (or: evo Tests NOPROGRESS ADDBUF 3)
 **   Tests
 **
 ** Build runs them and writes the report to tests.out. The tests that write files use RAM:dunit.

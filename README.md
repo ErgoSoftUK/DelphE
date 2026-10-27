@@ -139,6 +139,7 @@ Output goes to `build.out`. This compiles the modules, runs the smoke test
 writer, the helpers, the syntax highlighter, the code file sections and the generator. They need no
 screen. `Build` and `BuildEvo` compile and run them and write the report to `tests.out`
 (`dunit/SelfTest.e` tests DUnit itself first).
+The test program imports a lot of modules, so `ec` needs `ADDBUF 3` for it too (the scripts have it).
 
 To run only the tests, without a full build: `execute RunTests` (or `RunTestsEvo`) compiles and runs them,
 assuming the modules are up to date; the compiler output goes to `tests.log`. With the watcher running,
