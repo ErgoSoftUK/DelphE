@@ -2669,7 +2669,7 @@ ENDPROC
 -> OK in the module dialog: the lines become the module list. Apostrophes and spaces
 -> are dropped, so 'muimaster' typed with quotes is fine.
 PROC applyModules(text)
-  DEF out: PTR TO CHAR, i, len, o, c, pre, copyPre: PTR TO CHAR
+  DEF out: PTR TO CHAR, i, len, o, c, pre
   len := StrLen(text)
   out := AllocVec(len + 4, MEMF_PUBLIC OR MEMF_CLEAR)
   IF out = NIL THEN RETURN
