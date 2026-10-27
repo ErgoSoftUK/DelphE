@@ -20,5 +20,6 @@ ec GenTest >> /build.out
 GenTest > /gentest.out
 ec MainFormBuilt >> /build.out
 ec PenTest >> /build.out
+ec Bench >> /build.out
 cd /
 type build.out

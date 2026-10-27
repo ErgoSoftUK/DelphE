@@ -24,3 +24,4 @@ watch.log
 # local
 scratch/
 .idea
+tools/Bench
