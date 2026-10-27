@@ -296,16 +296,17 @@ ENDPROC
 
 /*** the language ***/
 
--> The generator builds long texts in E-strings; check what the compiler allows
+-> An E-string holds at most 32K characters (a bigger String() corrupts memory), which is why
+-> long texts in the generator use their own growing buffers
 PROC testLongEString()
   DEF s, i, chunk
-  s := String(100000)
-  assertNotNil(s, 'a 100000 byte E-string can be allocated')
+  s := String(32000)
+  assertNotNil(s, 'an E-string of 32000 bytes can be allocated')
   chunk := 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-0123456789-0123456789-0123456789-ABCD'
-  FOR i := 1 TO 600
+  FOR i := 1 TO 280
     StrAdd(s, chunk, ALL)
   ENDFOR
-  assertEquals(600 * StrLen(chunk), StrLen(s), 'all of it was kept')
+  assertEquals(280 * StrLen(chunk), StrLen(s), 'all of it was kept')
 ENDPROC
 
 /*** limits: long lines, many handlers, big texts ***/
@@ -351,7 +352,7 @@ PROC testLineTooLong()
 ENDPROC
 
 PROC testUnknownProperty()
-  DEF fh, w: PTR TO component, text
+  DEF fh, w: PTR TO component, text, r: PTR TO component
   makeTestDir()
   text := 'Window W "T"\n  VGroup root\n    Button b "B" :bogus :weight=5\n'
   fh := Open('RAM:dunit/unknown.mform', MODE_NEWFILE)
@@ -359,7 +360,8 @@ PROC testUnknownProperty()
   Close(fh)
   w := readForm('RAM:dunit/unknown.mform')
   assertNotNil(w, 'an unknown property does not stop the form loading')
-  w := rootOf(w).firstChild
+  r := rootOf(w)
+  w := r.firstChild
   assertEquals(5, w.weight, 'and the known one next to it is kept')
 ENDPROC
 
@@ -395,12 +397,12 @@ PROC testBigGeneratedText()
   w := newComponent(CK_WINDOW, 'Huge', 'Big text')
   r := newComponent(CK_VGROUP, 'root', NIL)
   w.addChild(r)
-  r.addChild(newComponent(CK_TEXT, 'lblHuge', longText(40000, "x", 'THE-END')))
+  r.addChild(newComponent(CK_TEXT, 'lblHuge', longText(20000, "x", 'THE-END')))
   res := generateFile('RAM:dunit/Huge.e', w)
   assertEquals(GEN_OK, res, NIL)
   buf, len := readAll('RAM:dunit/Huge.gen.e')
   assertNotNil(buf, NIL)
-  assertTrue(len > 40000, 'a text bigger than the output buffer was written')
+  assertTrue(len > 20000, 'a text bigger than the output buffer was written')
   assertContains('xxxTHE-END', buf, 'complete, to its last character')
 ENDPROC
 

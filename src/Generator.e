@@ -24,9 +24,9 @@ DEF oldLoop, genMainName, orphanList, evCounter, genBase, useCounter  -> genBase
 
 -> Output is collected in memory and written in big pieces: the generator makes thousands of
 -> tiny writes (a word, a quote, two spaces of indent), and each would be a call to the file
--> system. Everything for one file goes through put(), putc() and putMem(), and the file is
+-> system. Everything for one file goes through put() and putMem(), and the file is
 -> closed with closeOut(), which writes what is left.
-DEF obuf: PTR TO CHAR, olen, ocap, ofh, oneChar[4]: ARRAY OF CHAR
+DEF obuf: PTR TO CHAR, olen, ocap, ofh
 
 PROC outFlush()
   IF (ofh <> NIL) AND (olen > 0) THEN Write(ofh, obuf, olen)
@@ -55,11 +55,6 @@ ENDPROC
 
 PROC put(fh, s)
   putMem(fh, s, StrLen(s))
-ENDPROC
-
-PROC putc(fh, c)
-  oneChar[0] := c
-  putMem(fh, oneChar, 1)
 ENDPROC
 
 -> Writes what is left and closes the file
@@ -985,32 +980,46 @@ ENDPROC
 
 /*** the user's part ***/
 
--> The bytes the stubs of c's handlers (and of everything under it) could take at most
-PROC stubBytes(c: PTR TO component)
-  DEF ch: PTR TO component, n
-  n := 0
-  IF c.handler
-    IF eventName(c.kind) THEN n := StrLen(c.handler) + StrLen(c.name) + 200
-  ENDIF
-  ch := c.firstChild
-  WHILE ch
-    n := n + stubBytes(ch)
-    ch := ch.next
-  ENDWHILE
-ENDPROC n
+-> A text that grows as it is added to. (An E-string holds at most 32K characters.)
+OBJECT strbuf
+  buf: PTR TO CHAR
+  len
+  cap
+ENDOBJECT
 
--> The size of the string that collects the stubs for these forms
-PROC stubSpace(forms: PTR TO LONG, n)
-  DEF i, total, win: PTR TO component
-  total := 256
-  FOR i := 0 TO n - 1
-    win := forms[i]
-    total := total + stubBytes(win) + StrLen(win.name)
-  ENDFOR
-ENDPROC total
+PROC sbNew()
+  DEF sb: PTR TO strbuf
+  NEW sb
+  sb.cap := 4096
+  sb.buf := AllocVec(sb.cap, MEMF_PUBLIC OR MEMF_CLEAR)
+ENDPROC sb
+
+-> Adds a string to the end
+PROC sbAdd(sb: PTR TO strbuf, s)
+  DEF n, bigger: PTR TO CHAR, cap
+  n := StrLen(s)
+  IF (sb.len + n + 1) > sb.cap
+    cap := sb.cap
+    WHILE (sb.len + n + 1) > cap DO cap := cap * 2
+    bigger := AllocVec(cap, MEMF_PUBLIC OR MEMF_CLEAR)
+    IF bigger = NIL THEN RETURN
+    CopyMem(sb.buf, bigger, sb.len)
+    FreeVec(sb.buf)
+    sb.buf := bigger
+    sb.cap := cap
+  ENDIF
+  CopyMem(s, sb.buf + sb.len, n)
+  sb.len := sb.len + n
+  sb.buf[sb.len] := 0
+ENDPROC
+
+PROC sbFree(sb: PTR TO strbuf)
+  IF sb.buf THEN FreeVec(sb.buf)
+  END sb
+ENDPROC
 
 -> Appends to 'appended' a stub for every handler that buf does not define yet
-PROC collectStubs(c: PTR TO component, buf, appended, win: PTR TO component)
+PROC collectStubs(c: PTR TO component, buf, appended: PTR TO strbuf, win: PTR TO component)
   DEF ch: PTR TO component, sig
   IF c.handler
     IF eventName(c.kind)
@@ -1021,17 +1030,17 @@ PROC collectStubs(c: PTR TO component, buf, appended, win: PTR TO component)
       StrAdd(sig, '() OF t', ALL)
       StrAdd(sig, win.name, ALL)
       IF InStr(buf, sig) = -1
-        IF InStr(appended, sig) = -1
-          StrAdd(appended, '\n', ALL)
-          StrAdd(appended, sig, ALL)
-          StrAdd(appended, '\n  -> TODO: handle ', ALL)
-          StrAdd(appended, eventName(c.kind), ALL)
-          StrAdd(appended, ' of ', ALL)
-          StrAdd(appended, c.name, ALL)
-          StrAdd(appended, ' (components are fields of self, e.g. self.', ALL)
-          StrAdd(appended, c.name, ALL)
-          StrAdd(appended, ')', ALL)
-          StrAdd(appended, '\nENDPROC\n', ALL)
+        IF InStr(appended.buf, sig) = -1
+          sbAdd(appended, '\n')
+          sbAdd(appended, sig)
+          sbAdd(appended, '\n  -> TODO: handle ')
+          sbAdd(appended, eventName(c.kind))
+          sbAdd(appended, ' of ')
+          sbAdd(appended, c.name)
+          sbAdd(appended, ' (components are fields of self, e.g. self.')
+          sbAdd(appended, c.name)
+          sbAdd(appended, ')')
+          sbAdd(appended, '\nENDPROC\n')
         ENDIF
       ENDIF
       DisposeLink(sig)
@@ -1281,7 +1290,6 @@ PROC stripRegions(buf, len)
   CopyMem(buf + p, out + o, len - p)
   o := o + (len - p)
   out[o] := 0
-  DisposeLink(num)
 ENDPROC out, o
 
 PROC isIdentCh(c) IS ((c >= "A") AND (c <= "Z")) OR ((c >= "a") AND (c <= "z")) OR ((c >= "0") AND (c <= "9")) OR (c = "_")
@@ -1359,9 +1367,9 @@ ENDPROC FALSE
 ** GEN_NOMARKERS (the file has neither marker, so it is not one of ours).
 */
 PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
-  DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended, old, res
+  DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended: PTR TO strbuf, old, res
 
-  appended := String(stubSpace(forms, n))
+  appended := sbNew()
   orphanList := NIL
   oldLoop := FALSE
   buf, len := readAll(path)
@@ -1373,16 +1381,16 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
     ENDFOR
     fh := Open(path, MODE_NEWFILE)
     IF fh = NIL
-      DisposeLink(appended)
+      sbFree(appended)
       RETURN GEN_WRITEFAIL
     ENDIF
     win := forms[0]
     IF projName THEN genProjectHeader(fh, projName) ELSE genHeader(fh, win)
     put(fh, '\n/*** your code ***/\n')
-    put(fh, appended)
+    putMem(fh, appended.buf, appended.len)
     IF projName THEN genProjectMain(fh) ELSE genMain(fh, win)
     closeOut(fh)
-    DisposeLink(appended)
+    sbFree(appended)
     RETURN GEN_OK
   ENDIF
 
@@ -1411,14 +1419,14 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
       win := forms[i]
       collectStubs(win, cur, appended, win)
     ENDFOR
-    IF (old OR (StrLen(appended) > 0))
+    IF (old OR (appended.len > 0))
       IF old THEN writeBackup(path, buf, len)
       fh := Open(path, MODE_NEWFILE)
       IF fh = NIL
         res := GEN_WRITEFAIL
       ELSE
         putMem(fh, cur, clen)
-        put(fh, appended)
+        putMem(fh, appended.buf, appended.len)
         closeOut(fh)
       ENDIF
     ENDIF
@@ -1427,7 +1435,7 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
   -> the file was read for this one job: give its memory back
   IF (cur <> NIL) AND (cur <> buf) THEN Dispose(cur)
   Dispose(buf)
-  DisposeLink(appended)
+  sbFree(appended)
 ENDPROC res
 
 -> Writes the generated file (path.gen.e) and updates the user's file. Returns
@@ -1478,6 +1486,7 @@ PROC expandMarks(g: PTR TO CHAR, glen, first, glines, codeLines)
     ENDIF
   ENDWHILE
   out[o] := 0
+  DisposeLink(num)
 ENDPROC out, o
 
 PROC buildSource(userPath, buildPath)
