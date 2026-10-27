@@ -25,3 +25,7 @@ watch.log
 scratch/
 .idea
 tools/Bench
+tools/bench_default
+tools/bench_opti
+examples/showcase/Mixer
+examples/delphe/DelphEself

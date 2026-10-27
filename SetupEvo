@@ -1,0 +1,8 @@
+; Point the shell at E-VO instead of ec. Run once in the shell that starts WatchEvo:
+;   execute SetupEvo
+; E-VO's own modules come first; the E 3.3a modules (MUI and friends) are added after them.
+assign EVO: XFer:EVO
+path EVO:Bin add
+assign EMODULES: EVO:modules
+assign EMODULES: XFer:Amiga-E/Modules ADD
+echo "E-VO is set up"

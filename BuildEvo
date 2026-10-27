@@ -1,0 +1,34 @@
+; Build DelphE with E-VO instead of ec. Run from the DelphE drawer:  execute BuildEvo
+;   - the MUI modules of E 3.3a are in an older format that E-VO cannot read, so build them again
+;   - ADDBUF 3 gives the compiler enough workspace for the big programs
+;   - the designer is compiled from its own folder: E-VO reads the * in a module path as the
+;     current folder, where ec read it as the folder of the source file
+echo "Building.." > build.out
+cd XFer:EVO/modules/libraries
+evo mui NOPROGRESS >> XFer:DelphE/build.out
+evo muip NOPROGRESS >> XFer:DelphE/build.out
+cd XFer:DelphE
+cd src
+evo FormModel NOPROGRESS >> /build.out
+evo MForm NOPROGRESS >> /build.out
+evo Util NOPROGRESS >> /build.out
+evo Generator NOPROGRESS >> /build.out
+evo UserFile NOPROGRESS ADDBUF 3 >> /build.out
+evo Project NOPROGRESS >> /build.out
+evo Highlight NOPROGRESS >> /build.out
+evo Builder NOPROGRESS >> /build.out
+evo Preview NOPROGRESS >> /build.out
+evo mcc/Listtree_mcc NOPROGRESS >> /build.out
+evo mcc/TextEditor_MCC NOPROGRESS >> /build.out
+evo mcc/Toolbar_mcc NOPROGRESS >> /build.out
+cd designer
+evo Designer NOPROGRESS ADDBUF 3 >> //build.out
+cd //
+cd tools
+evo GenTest NOPROGRESS ADDBUF 3 >> /build.out
+GenTest > /gentest.out
+evo MainFormBuilt NOPROGRESS ADDBUF 3 >> /build.out
+evo PenTest NOPROGRESS >> /build.out
+evo Bench NOPROGRESS >> /build.out
+cd /
+type build.out

@@ -302,6 +302,14 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   (`MUIM_TextEditor_ARexxCmd`), elsewhere they act on the form; the menu items
   are always enabled.
 
+### E-VO
+
+E-VO 3.9.4 compiles DelphE and the programs it generates. Differences found: it cannot read E 3.3a's
+`libraries/mui.m` (rebuild it from the source), it needs `ADDBUF 3` for the large programs, it reads
+the `*` in a module path as the current folder (`ec`: the source file's folder), and its modules are
+incompatible with `ec`'s. The designer picks the compiler with the `DelphECompiler` variable
+(`compilerName`, `isEvo`) and adds `NOPROGRESS ADDBUF 3` for E-VO. See the README for setup.
+
 ### How Designer.e is organised
 
 `Designer.e` is one program with shared state: the windows and gadgets, the form

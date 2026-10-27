@@ -127,6 +127,30 @@ execute Build
 Output goes to `build.out`. This compiles the modules, runs the smoke test
 (`gentest.out`), and builds `src/preview` and `src/designer/designer`.
 
+## Building with E-VO
+
+[E-VO](https://github.com/dmcoles/EVO) (a maintained Amiga E compiler) builds all of DelphE, and the
+designer can use it for the programs it makes (see `DelphECompiler` above). In a trial, with E-VO
+3.9.4, every module and program compiled, and the designer and preview ran. What it needs:
+
+- **Install:** the Aminet package `dev/e/evo.lha`. `execute SetupEvo` points `EMODULES:` at E-VO's
+  modules first, then at the E 3.3a ones (it assumes `XFer:EVO` and `XFer:Amiga-E/Modules`: edit it
+  for your drawers). Note what `EMODULES:` was before, to switch back to `ec`.
+- **The MUI modules must be built again.** E-VO cannot read E 3.3a's `libraries/mui.m`. Copy `mui.e`
+  and `muip.e` from your E 3.3a `Modules/libraries` to `EVO:modules/libraries`, and in `mui.e` delete
+  everything after the `/*** End Of File ***/` line (stray text from `muip.e`). `BuildEvo` compiles
+  them. `muimaster.m` is fine as it is.
+- **`ADDBUF 3`:** the big programs need it ("workspace full!" otherwise).
+- **`*` in a module path** means the current folder for E-VO, but the folder of the source file for
+  `ec`. The designer is therefore compiled from its own folder.
+- **Modules:** `ec` and E-VO write modules the other cannot read. Use a separate copy of the folder
+  for E-VO, or `execute CleanModules` when you switch.
+- **Speed and size:** the `OPTI` switch makes programs about 8% smaller and gave no measurable speed
+  change (`tools/Bench.e`); it is not used by `BuildEvo`. E-VO's own gains are the workspace fix,
+  clean output (`NOPROGRESS`) and its bug fixes and checks.
+
+`BuildEvo`, `WatchEvo` and `SetupEvo` are the E-VO versions of `Build` and `Watch`.
+
 ## Running
 
 ```

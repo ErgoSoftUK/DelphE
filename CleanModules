@@ -1,0 +1,4 @@
+; Delete the compiled modules. ec and E-VO write modules in formats the other cannot read, so
+; run this when you switch compiler in the same folder:  execute CleanModules
+delete src/#?.m src/mcc/#?.m QUIET
+echo "modules deleted"
