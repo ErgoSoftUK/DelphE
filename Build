@@ -5,7 +5,11 @@ cd src
 ec FormModel >> /build.out
 ec MForm >> /build.out
 ec Util >> /build.out
+ec Toolchain >> /build.out
+ec GenOut >> /build.out
+ec GenRuntime >> /build.out
 ec Generator >> /build.out
+ec GenFiles >> /build.out
 ec UserFile >> /build.out
 ec Project >> /build.out
 ec Highlight >> /build.out
@@ -16,7 +20,7 @@ ec mcc/TextEditor_MCC >> /build.out
 ec mcc/Toolbar_mcc >> /build.out
 ec designer/Designer >> /build.out
 cd /tools
-ec GenTest >> /build.out
+ec GenTest ADDBUF 3 >> /build.out
 GenTest > /gentest.out
 ec MainFormBuilt >> /build.out
 ec PenTest >> /build.out

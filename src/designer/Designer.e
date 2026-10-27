@@ -13,7 +13,7 @@ OPT LARGE
 
 MODULE 'libraries/gadtools', 'intuition/classes', 'mui/muicustomclass', 'dos/dos', 'exec/memory', 'muimaster', 'libraries/mui', 'utility/tagitem',
        'amigalib/boopsi', 'intuition/classusr',
-       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/Util', '*/Project', '*/Highlight', '*/UserFile',
+       '*/FormModel', '*/MForm', '*/Builder', '*/Generator', '*/GenOut', '*/GenFiles', '*/Util', '*/Toolchain', '*/Project', '*/Highlight', '*/UserFile',
        '*/mcc/listtree_mcc', '*/mcc/texteditor_mcc', '*/mcc/toolbar_mcc'
 
 ENUM ID_SELECT = 1, ID_NAME, ID_TITLE, ID_SAVE, ID_PREVIEW,
@@ -1296,77 +1296,8 @@ PROC outputDir()
   IF projectPath THEN RETURN dirPart(projectPath)
 ENDPROC dirPart(filename)
 
--> Makes dir the current directory; returns what leaveDir() needs
-PROC enterDir(dir)
-  DEF lock, old
-  lock := NIL
-  old := NIL
-  IF StrLen(dir) > 0
-    lock := Lock(dir, SHARED_LOCK)
-    IF lock THEN old := CurrentDir(lock)
-  ENDIF
-ENDPROC lock, old
-
-PROC leaveDir(lock, old)
-  IF lock
-    CurrentDir(old)
-    UnLock(lock)
-  ENDIF
-ENDPROC
-
--> Compiles the generated file with ec. On errors, shows the output and puts
--> the cursor on the offending line. Returns TRUE if it compiled.
--> Which compiler builds the program: the variable DelphECompiler (ec if it is not
--> set), as an E-string. For E-VO: setenv DelphECompiler evo
-PROC compilerName()
-  DEF s, n
-  s := String(40)
-  n := GetVar('DelphECompiler', s, 36, 0)
-  IF n > 0
-    SetStr(s, n)
-  ELSE
-    StrCopy(s, 'ec', ALL)
-  ENDIF
-ENDPROC s
-
--> Is that compiler E-VO? It takes a few extra switches: no progress numbers, and more
--> workspace for the compiler's buffers (the big programs need it).
--> Is a debug build asked for? The variable DelphEDebug is set to anything but 0. With E-VO the
--> program then also checks every NIL pointer, array index and the stack, and stops with the
--> line it happened on; its console window stays open so that the message can be read.
-PROC debugOn()
-  DEF s[4]: ARRAY OF CHAR, n
-  n := GetVar('DelphEDebug', s, 3, 0)
-  IF n <= 0 THEN RETURN FALSE
-  IF s[0] = "0" THEN RETURN FALSE
-ENDPROC TRUE
-
-PROC isEvo(name)
-  IF StrLen(name) < 3 THEN RETURN FALSE
-  IF (name[StrLen(name) - 3] = "e") OR (name[StrLen(name) - 3] = "E")
-    IF (name[StrLen(name) - 2] = "v") OR (name[StrLen(name) - 2] = "V")
-      IF (name[StrLen(name) - 1] = "o") OR (name[StrLen(name) - 1] = "O") THEN RETURN TRUE
-    ENDIF
-  ENDIF
-ENDPROC FALSE
-
--> The full path of a folder (a path relative to the current folder will not do from another
--> folder), ending in : or /, as an E-string, or NIL. An empty path is the current folder.
-PROC absoluteDir(dir)
-  DEF lock, buf[300]: ARRAY OF CHAR, s, n, ok
-  lock := Lock(dir, SHARED_LOCK)
-  IF lock = NIL THEN RETURN NIL
-  ok := NameFromLock(lock, buf, 298)
-  UnLock(lock)
-  IF ok = FALSE THEN RETURN NIL
-  n := StrLen(buf)
-  s := String(n + 2)
-  StrCopy(s, buf, ALL)
-  IF n > 0
-    IF (buf[n - 1] <> ":") AND (buf[n - 1] <> "/") THEN StrAdd(s, '/', ALL)
-  ENDIF
-ENDPROC s
-
+-> Compiles the generated file with the compiler of the toolchain. On errors, shows the output and
+-> puts the cursor on the offending line. Returns TRUE if it compiled.
 PROC compileCode()
   DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct, absd, shown
 
@@ -1687,14 +1618,8 @@ PROC doAdd(idx)
     nm := uniqueName(lowerFirst(frameName))
     ttl := NIL
   ELSE
-    nm := uniqueName(ListItem(['vgrp', 'hgrp', 'btn', 'lbl', 'edt', 'chk',
-                               'cyc', 'rad', 'sld', 'gau', 'lst', 'pgs',
-                               'spc', 'col', 'scr', 'mem', 'utilities', 'fdlg', 'mdlg',
-                               'frm', 'use', 'mstrip', 'mnu', 'mni', 'bal', 'tmr'], idx))
-    ttl := ListItem([NIL, NIL, 'Button', 'Label', '', '',
-                     'One|Two|Three', 'One|Two|Three', '', '', 'One|Two|Three',
-                     'Page 1|Page 2', NIL, NIL, NIL, '', NIL, 'Select a file', 'Are you sure?',
-                     NIL, NIL, NIL, 'Menu', 'Item', NIL, NIL], idx)
+    nm := uniqueName(kindPrefix(kind))
+    ttl := kindTitle(kind)
   ENDIF
   c := newComponent(kind, nm, ttl)
   pushUndo()
@@ -1893,12 +1818,12 @@ ENDPROC
 
 /*** undo and redo ***/
 
--> Menu items 9 and 10 of each window's menus are Undo and Redo
+-> The Undo and Redo items of the menus
 PROC updateUndoMenu()
   DEF slot, undoItem, redoItem
   FOR slot := 0 TO 0
-    undoItem := mItems[slot * MENUITEMS + 9]
-    redoItem := mItems[slot * MENUITEMS + 10]
+    undoItem := menuItemOf(slot, ID_UNDO)
+    redoItem := menuItemOf(slot, ID_REDO)
     -> always enabled: on the Code tab they belong to the editor, whose history we cannot see
     set(undoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
     set(redoItem, MUIA_Menuitem_Enabled, MUI_TRUE)
@@ -2112,109 +2037,102 @@ ENDPROC
 
 /*** menus and toolbars ***/
 
+-> The menus, one row each: a menu title (id MS_MENU), a separator (MS_BAR), or an item with its
+-> shortcut and the return ID it sends. makeMenu builds them, hookMenus connects them and
+-> menuItemOf finds one by its ID, so there are no item numbers to keep in step.
+CONST MS_MENU = -100, MS_BAR = -101
+
+PROC menuSpec() IS [
+  ['Project', NIL, MS_MENU],
+  ['New project...', NIL, ID_NEWPROJ],
+  ['Open project...', NIL, ID_OPENPROJ],
+  [NIL, NIL, MS_BAR],
+  ['New form...', 'N', ID_NEW],
+  ['Open form...', 'O', ID_OPEN],
+  ['Remove form from project', NIL, ID_REMOVEFORM],
+  ['Make main form', NIL, ID_MAKEMAIN],
+  [NIL, NIL, MS_BAR],
+  ['Save', 'S', ID_SAVE],
+  ['Save As...', 'A', ID_SAVEAS],
+  [NIL, NIL, MS_BAR],
+  ['Quit', 'Q', MUIV_Application_ReturnID_Quit],
+  ['Edit', NIL, MS_MENU],
+  ['Undo', 'Z', ID_UNDO],
+  ['Redo', 'Y', ID_REDO],
+  [NIL, NIL, MS_BAR],
+  ['Delete component', 'D', ID_DELETE],
+  ['Move up', 'U', ID_UP],
+  ['Move down', 'J', ID_DOWN],
+  ['Build', NIL, MS_MENU],
+  ['Preview form', 'P', ID_PREVIEW],
+  [NIL, NIL, MS_BAR],
+  ['Generate code', 'G', ID_GENERATE],
+  ['Build', 'B', ID_COMPILE],
+  ['Run', 'R', ID_RUN],
+  ['View', NIL, MS_MENU],
+  ['Form tab', '1', ID_SHOWFORM],
+  ['Code tab', '2', ID_SHOWCODE],
+  ['Show/hide object inspector', '3', ID_SHOWINSP]
+]
+
 -> Every window gets its own copy of the menus, because an Amiga menu bar
--> belongs to the active window. The items are remembered in mItems (12 per
--> window) so hookMenus() can connect them once the application exists.
+-> belongs to the active window. The items are remembered in mItems (MENUITEMS per
+-> window, in the order of the table) so hookMenus() can connect them once the application exists.
 PROC makeMenu(slot)
-  DEF strip, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, m21, base
-  strip := MenustripObject,
-    MUIA_Family_Child, MenuObjectT('Project'),
-      MUIA_Family_Child, m1 := MenuitemObject,
-        MUIA_Menuitem_Title, 'New project...', End,
-      MUIA_Family_Child, m2 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Open project...', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m3 := MenuitemObject,
-        MUIA_Menuitem_Title, 'New form...', MUIA_Menuitem_Shortcut, 'N', End,
-      MUIA_Family_Child, m4 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Open form...', MUIA_Menuitem_Shortcut, 'O', End,
-      MUIA_Family_Child, m5 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Remove form from project', End,
-      MUIA_Family_Child, m6 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Make main form', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m7 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save', MUIA_Menuitem_Shortcut, 'S', End,
-      MUIA_Family_Child, m8 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Save As...', MUIA_Menuitem_Shortcut, 'A', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m9 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Quit', MUIA_Menuitem_Shortcut, 'Q', End,
-    End,
-    MUIA_Family_Child, MenuObjectT('Edit'),
-      MUIA_Family_Child, m10 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Undo', MUIA_Menuitem_Shortcut, 'Z', End,
-      MUIA_Family_Child, m11 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Redo', MUIA_Menuitem_Shortcut, 'Y', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m12 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Delete component', MUIA_Menuitem_Shortcut, 'D', End,
-      MUIA_Family_Child, m13 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Move up', MUIA_Menuitem_Shortcut, 'U', End,
-      MUIA_Family_Child, m14 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Move down', MUIA_Menuitem_Shortcut, 'J', End,
-    End,
-    MUIA_Family_Child, MenuObjectT('Build'),
-      MUIA_Family_Child, m15 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Preview form', MUIA_Menuitem_Shortcut, 'P', End,
-      MUIA_Family_Child, MenuitemObject,
-        MUIA_Menuitem_Title, NM_BARLABEL, End,
-      MUIA_Family_Child, m16 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Generate code', MUIA_Menuitem_Shortcut, 'G', End,
-      MUIA_Family_Child, m17 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Build', MUIA_Menuitem_Shortcut, 'B', End,
-      MUIA_Family_Child, m18 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Run', MUIA_Menuitem_Shortcut, 'R', End,
-    End,
-    MUIA_Family_Child, MenuObjectT('View'),
-      MUIA_Family_Child, m19 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Form tab', MUIA_Menuitem_Shortcut, '1', End,
-      MUIA_Family_Child, m20 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Code tab', MUIA_Menuitem_Shortcut, '2', End,
-      MUIA_Family_Child, m21 := MenuitemObject,
-        MUIA_Menuitem_Title, 'Show/hide object inspector', MUIA_Menuitem_Shortcut, '3', End,
-    End,
-  End
+  DEF strip, menu, item, spec: PTR TO LONG, row: PTR TO LONG, i, k
+  strip := MenustripObject, End
   IF strip = NIL THEN Raise('Failed to create the menus')
-  base := slot * MENUITEMS
-  mItems[base] := m1
-  mItems[base + 1] := m2
-  mItems[base + 2] := m3
-  mItems[base + 3] := m4
-  mItems[base + 4] := m5
-  mItems[base + 5] := m6
-  mItems[base + 6] := m7
-  mItems[base + 7] := m8
-  mItems[base + 8] := m9
-  mItems[base + 9] := m10
-  mItems[base + 10] := m11
-  mItems[base + 11] := m12
-  mItems[base + 12] := m13
-  mItems[base + 13] := m14
-  mItems[base + 14] := m15
-  mItems[base + 15] := m16
-  mItems[base + 16] := m17
-  mItems[base + 17] := m18
-  mItems[base + 18] := m19
-  mItems[base + 19] := m20
-  mItems[base + 20] := m21
+  spec := menuSpec()
+  menu := NIL
+  k := 0
+  FOR i := 0 TO ListLen(spec) - 1
+    row := spec[i]
+    IF row[2] = MS_MENU
+      menu := MenuObject, MUIA_Menu_Title, row[0], End
+      IF menu = NIL THEN Raise('Failed to create the menus')
+      doMethodA(strip, [OM_ADDMEMBER, menu])
+    ELSEIF row[2] = MS_BAR
+      item := MenuitemObject, MUIA_Menuitem_Title, NM_BARLABEL, End
+      doMethodA(menu, [OM_ADDMEMBER, item])
+    ELSE
+      IF row[1]
+        item := MenuitemObject, MUIA_Menuitem_Title, row[0], MUIA_Menuitem_Shortcut, row[1], End
+      ELSE
+        item := MenuitemObject, MUIA_Menuitem_Title, row[0], End
+      ENDIF
+      IF item = NIL THEN Raise('Failed to create the menus')
+      doMethodA(menu, [OM_ADDMEMBER, item])
+      mItems[slot * MENUITEMS + k] := item
+      k++
+    ENDIF
+  ENDFOR
 ENDPROC strip
 
+-> The menu item of a window's menus that sends the given ID
+PROC menuItemOf(slot, id)
+  DEF spec: PTR TO LONG, row: PTR TO LONG, i, k
+  spec := menuSpec()
+  k := 0
+  FOR i := 0 TO ListLen(spec) - 1
+    row := spec[i]
+    IF row[2] > MS_MENU
+      IF row[2] = id THEN RETURN mItems[slot * MENUITEMS + k]
+      k++
+    ENDIF
+  ENDFOR
+ENDPROC NIL
 
 PROC hookMenus(windows)
-  DEF ids, slot, k
-  ids := [ID_NEWPROJ, ID_OPENPROJ, ID_NEW, ID_OPEN, ID_REMOVEFORM, ID_MAKEMAIN,
-          ID_SAVE, ID_SAVEAS, MUIV_Application_ReturnID_Quit,
-          ID_UNDO, ID_REDO, ID_DELETE, ID_UP, ID_DOWN,
-          ID_PREVIEW, ID_GENERATE, ID_COMPILE, ID_RUN,
-          ID_SHOWFORM, ID_SHOWCODE, ID_SHOWINSP]
+  DEF spec: PTR TO LONG, row: PTR TO LONG, slot, i, k
+  spec := menuSpec()
   FOR slot := 0 TO windows - 1
-    FOR k := 0 TO MENUITEMS - 1
-      hookMenu(mItems[slot * MENUITEMS + k], ListItem(ids, k))
+    k := 0
+    FOR i := 0 TO ListLen(spec) - 1
+      row := spec[i]
+      IF row[2] > MS_MENU
+        hookMenu(mItems[slot * MENUITEMS + k], row[2])
+        k++
+      ENDIF
     ENDFOR
   ENDFOR
 ENDPROC

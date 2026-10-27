@@ -103,8 +103,12 @@ See `docs/DESIGN.md` for how it fits together.
 src/FormModel.e     the component tree for one form
 src/MForm.e         .mform reader and writer
 src/Builder.e       form model -> live MUI objects (used by preview and designer)
-src/Generator.e     form model -> E source file
+src/Generator.e     form model -> E source (the generated region)
+src/GenOut.e        buffered output and text helpers of the generator
+src/GenRuntime.e    the dialog, timer and report helpers a generated file carries
+src/GenFiles.e      the user file, the .gen.e file and the program the compiler gets
 src/Util.e          command line, file requester and string helpers
+src/Toolchain.e     which compiler (ec or E-VO), debug switch, folder handling
 src/Project.e       .mproj reader and writer
 src/Preview.e       standalone live preview: Preview [file.mform]
 src/designer/       the designer: Designer.e

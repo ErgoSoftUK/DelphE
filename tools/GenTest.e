@@ -6,7 +6,7 @@
 
 OPT LARGE
 
-MODULE '*/src/FormModel', '*/src/MForm', '*/src/Generator'
+MODULE '*/src/FormModel', '*/src/MForm', '*/src/Generator', '*/src/GenOut', '*/src/GenFiles'
 
 PROC main()
   DEF win: PTR TO component, res, first, glines

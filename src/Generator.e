@@ -10,121 +10,22 @@
 ** procedures (stubs are appended for new handlers) and main().
 **
 ** Handlers are methods of the form object, so they can use self.<component>.
+**
+** The work is shared by four modules: GenOut (writing text), GenRuntime (the helpers a generated
+** file carries), this one (a form or project to E source), and GenFiles (the user's file and
+** the program the compiler gets).
 */
 
 OPT MODULE
 OPT EXPORT
 OPT LARGE
 
-MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util'
+MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util', '*GenOut', '*GenRuntime'
 
 CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
-DEF oldLoop, genMainName, orphanList, evCounter, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
+DEF evCounter, genMainName, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
 
--> Output is collected in memory and written in big pieces: the generator makes thousands of
--> tiny writes (a word, a quote, two spaces of indent), and each would be a call to the file
--> system. Everything for one file goes through put() and putMem(), and the file is
--> closed with closeOut(), which writes what is left.
-DEF obuf: PTR TO CHAR, olen, ocap, ofh
-
-PROC outFlush()
-  IF (ofh <> NIL) AND (olen > 0) THEN Write(ofh, obuf, olen)
-  olen := 0
-ENDPROC
-
-PROC putMem(fh, p: PTR TO CHAR, n)
-  IF n <= 0 THEN RETURN
-  IF fh <> ofh
-    outFlush()
-    ofh := fh
-  ENDIF
-  IF obuf = NIL
-    obuf := AllocVec(16384, MEMF_PUBLIC)
-    IF obuf THEN ocap := 16384
-  ENDIF
-  IF (obuf = NIL) OR (n > ocap)
-    outFlush()
-    Write(fh, p, n)
-    RETURN
-  ENDIF
-  IF (olen + n) > ocap THEN outFlush()
-  CopyMem(p, obuf + olen, n)
-  olen := olen + n
-ENDPROC
-
-PROC put(fh, s)
-  putMem(fh, s, StrLen(s))
-ENDPROC
-
--> Writes what is left and closes the file
-PROC closeOut(fh)
-  outFlush()
-  Close(fh)
-  ofh := NIL
-ENDPROC
-
-PROC putNum(fh, n)
-  DEF s
-  s := String(16)
-  StringF(s, '\d', n)
-  put(fh, s)
-  DisposeLink(s)
-ENDPROC
-
-PROC indent(fh, depth)
-  DEF i
-  FOR i := 1 TO depth DO put(fh, '  ')
-ENDPROC
-
--> E strings are single-quoted; \a is an apostrophe
-PROC quoted(fh, s)
-  DEF i, ch, run
-  IF s = NIL THEN s := ''
-  put(fh, '\a')
-  run := 0
-  FOR i := 0 TO StrLen(s) - 1
-    ch := s[i]
-    -> inside an E string literal an apostrophe is \a and a backslash is \\
-    IF (ch = 39) OR (ch = 92)
-      putMem(fh, s + run, i - run)
-      IF ch = 39 THEN put(fh, '\\a') ELSE put(fh, '\\\\')
-      run := i + 1
-    ENDIF
-  ENDFOR
-  putMem(fh, s + run, StrLen(s) - run)
-  put(fh, '\a')
-ENDPROC
-
-PROC putPair(fh, text, n)
-  put(fh, text)
-  putNum(fh, n)
-ENDPROC
-
--> "One|Two" -> ['One', 'Two', NIL]
-PROC putItems(fh, s)
-  DEF i, start, len, seg
-  IF s = NIL THEN s := ''
-  len := StrLen(s)
-  start := 0
-  put(fh, '[')
-  FOR i := 0 TO len
-    IF (i = len) OR (s[i] = "|")
-      seg := String(i - start + 1)
-      IF i > start THEN MidStr(seg, s, start, i - start)
-      quoted(fh, seg)
-      put(fh, ', ')
-      DisposeLink(seg)
-      start := i + 1
-    ENDIF
-  ENDFOR
-  put(fh, 'NIL]')
-ENDPROC
-
--> A number property, or its default
-PROC numOr(c: PTR TO component, bit, v, dflt)
-  IF c.propFlags AND bit THEN RETURN v
-ENDPROC dflt
 
 -> The MUIV_Font_ constant for a font index (see fontName in FormModel)
 PROC fontConst(idx) IS ListItem(['', 'MUIV_Font_Normal', 'MUIV_Font_Tiny', 'MUIV_Font_Big', 'MUIV_Font_Title', 'MUIV_Font_Fixed', 'MUIV_Font_List', 'MUIV_Font_Button'], idx)
@@ -401,22 +302,22 @@ PROC leafExpr(fh, c: PTR TO component)
       emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_SLIDER
-      putPair(fh, 'SliderObject, MUIA_Numeric_Min, ', numOr(c, PF_MIN, c.minV, 0))
-      putPair(fh, ', MUIA_Numeric_Max, ', numOr(c, PF_MAX, c.maxV, 100))
-      putPair(fh, ', MUIA_Numeric_Value, ', numOr(c, PF_VALUE, c.value, 0))
+      putPair(fh, 'SliderObject, MUIA_Numeric_Min, ', numberOr(c, PF_MIN, c.minV, 0))
+      putPair(fh, ', MUIA_Numeric_Max, ', numberOr(c, PF_MAX, c.maxV, 100))
+      putPair(fh, ', MUIA_Numeric_Value, ', numberOr(c, PF_VALUE, c.value, 0))
       IF c.propFlags AND PF_VERT THEN put(fh, ', MUIA_Group_Horiz, FALSE')
       emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_GAUGE
       put(fh, 'GaugeObject, GaugeFrame, MUIA_Gauge_Horiz, ')
       IF c.propFlags AND PF_VERT THEN put(fh, 'FALSE') ELSE put(fh, 'MUI_TRUE')
-      putPair(fh, ', MUIA_Gauge_Max, ', numOr(c, PF_MAX, c.maxV, 100))
-      putPair(fh, ', MUIA_Gauge_Current, ', numOr(c, PF_VALUE, c.value, 0))
+      putPair(fh, ', MUIA_Gauge_Max, ', numberOr(c, PF_MAX, c.maxV, 100))
+      putPair(fh, ', MUIA_Gauge_Current, ', numberOr(c, PF_VALUE, c.value, 0))
       emitLeafExtras(fh, c)
       put(fh, ', End')
     CASE CK_TIMER
       put(fh, 'delpheTimer(')
-      putNum(fh, numOr(c, PF_VALUE, c.value, 1000))
+      putNum(fh, numberOr(c, PF_VALUE, c.value, 1000))
       IF c.propFlags AND PF_DISABLED THEN put(fh, ', FALSE)') ELSE put(fh, ', TRUE)')
     CASE CK_FILEDLG
       put(fh, 'delpheFileDialog(')
@@ -653,7 +554,7 @@ PROC containerExpr(fh, c: PTR TO component, depth)
       emitChildren(fh, c, depth)
     CASE CK_COLGROUP
       put(fh, 'ColGroup(')
-      putNum(fh, numOr(c, PF_VALUE, c.value, 2))
+      putNum(fh, numberOr(c, PF_VALUE, c.value, 2))
       put(fh, '),\n')
       emitGroupExtras(fh, c, depth)
       emitChildren(fh, c, depth)
@@ -980,43 +881,6 @@ ENDPROC
 
 /*** the user's part ***/
 
--> A text that grows as it is added to. (An E-string holds at most 32K characters.)
-OBJECT strbuf
-  buf: PTR TO CHAR
-  len
-  cap
-ENDOBJECT
-
-PROC sbNew()
-  DEF sb: PTR TO strbuf
-  NEW sb
-  sb.cap := 4096
-  sb.buf := AllocVec(sb.cap, MEMF_PUBLIC OR MEMF_CLEAR)
-ENDPROC sb
-
--> Adds a string to the end
-PROC sbAdd(sb: PTR TO strbuf, s)
-  DEF n, bigger: PTR TO CHAR, cap
-  n := StrLen(s)
-  IF (sb.len + n + 1) > sb.cap
-    cap := sb.cap
-    WHILE (sb.len + n + 1) > cap DO cap := cap * 2
-    bigger := AllocVec(cap, MEMF_PUBLIC OR MEMF_CLEAR)
-    IF bigger = NIL THEN RETURN
-    CopyMem(sb.buf, bigger, sb.len)
-    FreeVec(sb.buf)
-    sb.buf := bigger
-    sb.cap := cap
-  ENDIF
-  CopyMem(s, sb.buf + sb.len, n)
-  sb.len := sb.len + n
-  sb.buf[sb.len] := 0
-ENDPROC
-
-PROC sbFree(sb: PTR TO strbuf)
-  IF sb.buf THEN FreeVec(sb.buf)
-  END sb
-ENDPROC
 
 -> Appends to 'appended' a stub for every handler that buf does not define yet
 PROC collectStubs(c: PTR TO component, buf, appended: PTR TO strbuf, win: PTR TO component)
@@ -1107,450 +971,6 @@ ENDPROC
 
 /*** files ***/
 
--> Returns the whole file as a zero-terminated buffer and its length,
--> or NIL, 0 if it does not exist.
-PROC readAll(path)
-  DEF fh, size, buf
-  size := FileLength(path)
-  IF size < 0 THEN RETURN NIL, 0
-  fh := Open(path, MODE_OLDFILE)
-  IF fh = NIL THEN RETURN NIL, 0
-  buf := NewM(size + 1, MEMF_PUBLIC)
-  IF size > 0 THEN Read(fh, buf, size)
-  Close(fh)
-ENDPROC buf, size
-
-PROC writeBackup(path, buf, len)
-  DEF fh, bak
-  bak := String(StrLen(path) + 8)
-  StrCopy(bak, path, ALL)
-  StrAdd(bak, '.bak', ALL)
-  fh := Open(bak, MODE_NEWFILE)
-  IF fh
-    Write(fh, buf, len)
-    Close(fh)
-  ENDIF
-ENDPROC
-
--> The generated file that belongs to a program file: Main.e -> Main.gen.e
-PROC genPath(path)
-  DEF s, n
-  n := StrLen(path)
-  s := String(n + 8)
-  StrCopy(s, path, ALL)
-  IF n > 2
-    IF (path[n - 2] = ".") AND ((path[n - 1] = "e") OR (path[n - 1] = "E")) THEN SetStr(s, n - 2)
-  ENDIF
-  StrAdd(s, '.gen.e', ALL)
-ENDPROC s
-
--> Does any of these forms use a component of this kind?
-PROC anyUses(forms: PTR TO LONG, n, kind)
-  DEF i
-  FOR i := 0 TO n - 1
-    IF usesKind(forms[i], kind) THEN RETURN TRUE
-  ENDFOR
-ENDPROC FALSE
-
--> Object types of the dialogs, which are not MUI objects but small helpers the
--> generated file carries itself, so programs need no extra module
-PROC genRuntimeTypes(fh, forms: PTR TO LONG, n)
-  IF anyUses(forms, n, CK_FILEDLG)
-    put(fh, 'MODULE \aasl\a, \alibraries/asl\a\n\n')
-    put(fh, '-> a file requester: set pattern, call execute(), read path\n')
-    put(fh, 'OBJECT tFileDialog\n  title: PTR TO CHAR\n  pattern: PTR TO CHAR\n')
-    put(fh, '  drawer: PTR TO CHAR   -> an E-string: change it with StrCopy()\n')
-    put(fh, '  path: PTR TO CHAR     -> the chosen file, with its drawer\n  save\nENDOBJECT\n\n')
-  ENDIF
-  IF anyUses(forms, n, CK_TIMER)
-    put(fh, 'MODULE \adevices/timer\a, \aexec/io\a, \aexec/ports\a\n\n')
-    put(fh, '-> a timer: its OnTimer handler runs every interval; start() and stop() control it\n')
-    put(fh, 'OBJECT tTimer\n  port: PTR TO mp\n  req: PTR TO timerequest\n  interval\n  active\n  pending\nENDOBJECT\n\n')
-  ENDIF
-  IF anyUses(forms, n, CK_MSGDLG)
-    put(fh, '-> a message requester: call execute(); it returns the number of the button chosen\n')
-    put(fh, 'OBJECT tMessageDialog\n  text: PTR TO CHAR\n  buttons: PTR TO CHAR\n  windowTitle: PTR TO CHAR\nENDOBJECT\n\n')
-  ENDIF
-ENDPROC
-
-PROC genRuntimeProcs(fh, forms: PTR TO LONG, n)
-  -> what the program says when it stops on an exception: Raise('text') gives a string, and
-  -> NILCHECK, ARRAYCHECK and STACKCHECK throw a short code with the line it happened on
-  put(fh, 'PROC delpheReport(ex, info)\n  DEF b[8]: ARRAY OF CHAR, i, c, n, ok, line\n  n := 0\n  ok := TRUE\n')
-  put(fh, '  FOR i := 0 TO 3\n    c := Shr(ex, 24 - Mul(i, 8)) AND 255\n')
-  put(fh, '    IF (c = 0) AND (n = 0)\n      -> the code NIL has only three characters\n')
-  put(fh, '    ELSEIF (c < 32) OR (c > 126)\n      ok := FALSE\n    ELSE\n      b[n] := c\n      n++\n    ENDIF\n  ENDFOR\n')
-  put(fh, '  b[n] := 0\n  IF (ok = FALSE) OR (n < 3)\n    WriteF(\a\\s\\n\a, ex)\n    RETURN\n  ENDIF\n')
-  put(fh, '  IF StrCmp(b, \aNIL\a, 3) AND (n = 3)\n    WriteF(\aStopped: a NIL pointer was used\a)\n')
-  put(fh, '  ELSEIF StrCmp(b, \aINDX\a, 4)\n    WriteF(\aStopped: an array index was out of range\a)\n')
-  put(fh, '  ELSEIF StrCmp(b, \aSTCK\a, 4)\n    WriteF(\aStopped: the stack ran out\a)\n')
-  put(fh, '  ELSE\n    WriteF(\aStopped: \\s\a, b)\n  ENDIF\n')
-  put(fh, '  IF info > 0\n    IF info >= (DELPHE_FIRST + DELPHE_LINES)\n      line := info - DELPHE_LINES - DELPHE_CODE\n')
-  put(fh, '      IF line > 0 THEN WriteF(\a, in your code at line \\d of the Code editor\a, line) ELSE WriteF(\a, in your header or globals (line \\d of the file)\a, info - DELPHE_LINES)\n')
-  put(fh, '    ELSEIF info >= DELPHE_FIRST\n      WriteF(\a, in the generated code (line \\d of the .gen.e file)\a, info - DELPHE_FIRST + 1)\n')
-  put(fh, '    ELSE\n      WriteF(\a, in your header (line \\d)\a, info)\n    ENDIF\n  ENDIF\n  WriteF(\a\\n\a)\nENDPROC\n\n')
-  IF anyUses(forms, n, CK_FILEDLG)
-    put(fh, 'PROC delpheFileDialog(title, pattern, save)\n  DEF d: PTR TO tFileDialog\n  NEW d\n')
-    put(fh, '  d.title := title\n  d.pattern := pattern\n  d.drawer := String(260)\n  d.path := String(260)\n  d.save := save\nENDPROC d\n\n')
-    put(fh, 'PROC execute() OF tFileDialog\n  DEF req: PTR TO filerequester, ok, flags, okText, n\n')
-    put(fh, '  ok := FALSE\n  flags := FILF_PATGAD\n  okText := \aOpen\a\n')
-    put(fh, '  IF self.save\n    flags := flags OR FILF_SAVE\n    okText := \aSave\a\n  ENDIF\n')
-    put(fh, '  IF (aslbase := OpenLibrary(\aasl.library\a, 37))\n')
-    put(fh, '    req := AllocAslRequest(ASL_FILEREQUEST, NIL)\n    IF req\n')
-    put(fh, '      IF AslRequest(req, [ASL_HAIL, self.title, ASL_DIR, self.drawer, ASL_PATTERN, self.pattern,\n')
-    put(fh, '                          ASL_FUNCFLAGS, flags, ASL_OKTEXT, okText, NIL])\n')
-    put(fh, '        StrCopy(self.drawer, req.drawer, ALL)\n        StrCopy(self.path, req.drawer, ALL)\n')
-    put(fh, '        n := StrLen(self.path)\n')
-    put(fh, '        IF n > 0\n          IF (self.path[n - 1] <> \a:\a) AND (self.path[n - 1] <> \a/\a) THEN StrAdd(self.path, \a/\a, ALL)\n        ENDIF\n')
-    put(fh, '        StrAdd(self.path, req.file, ALL)\n        ok := TRUE\n      ENDIF\n      FreeAslRequest(req)\n    ENDIF\n')
-    put(fh, '    CloseLibrary(aslbase)\n  ENDIF\nENDPROC ok\n\n')
-  ENDIF
-  IF anyUses(forms, n, CK_TIMER)
-    put(fh, 'PROC delpheTimer(ms, active)\n  DEF t: PTR TO tTimer\n  NEW t\n  t.interval := ms\n')
-    put(fh, '  t.port := CreateMsgPort()\n  IF t.port\n    t.req := CreateIORequest(t.port, SIZEOF timerequest)\n')
-    put(fh, '    IF t.req\n      IF OpenDevice(TIMERNAME, UNIT_VBLANK, t.req, 0) <> 0\n')
-    put(fh, '        DeleteIORequest(t.req)\n        t.req := NIL\n      ENDIF\n    ENDIF\n  ENDIF\n')
-    put(fh, '  IF t.req\n    IF active THEN t.start()\n  ENDIF\nENDPROC t\n\n')
-    put(fh, 'PROC arm() OF tTimer\n  self.req.io.command := TR_ADDREQUEST\n')
-    put(fh, '  self.req.time.secs := Div(self.interval, 1000)\n  self.req.time.micro := Mul(Mod(self.interval, 1000), 1000)\n')
-    put(fh, '  SendIO(self.req)\n  self.pending := TRUE\nENDPROC\n\n')
-    put(fh, 'PROC start() OF tTimer\n  IF self.req = NIL THEN RETURN\n  self.active := TRUE\n')
-    put(fh, '  IF self.pending = FALSE THEN self.arm()\nENDPROC\n\n')
-    put(fh, 'PROC stop() OF tTimer\n  self.active := FALSE\n  IF self.pending\n')
-    put(fh, '    IF CheckIO(self.req) = NIL THEN AbortIO(self.req)\n    WaitIO(self.req)\n    self.pending := FALSE\n  ENDIF\nENDPROC\n\n')
-    put(fh, '-> TRUE once each time the interval has passed\n')
-    put(fh, 'PROC fired() OF tTimer\n  IF self.req = NIL THEN RETURN FALSE\n  IF self.pending = FALSE THEN RETURN FALSE\n')
-    put(fh, '  IF CheckIO(self.req) = NIL THEN RETURN FALSE\n  WaitIO(self.req)\n  self.pending := FALSE\n')
-    put(fh, '  IF self.active THEN self.arm()\nENDPROC TRUE\n\n')
-    put(fh, 'PROC sigMask() OF tTimer\n  IF self.port = NIL THEN RETURN 0\nENDPROC Shl(1, self.port.sigbit)\n\n')
-    put(fh, 'PROC release() OF tTimer\n  IF self.req = NIL THEN RETURN\n  self.stop()\n  CloseDevice(self.req)\n')
-    put(fh, '  DeleteIORequest(self.req)\n  self.req := NIL\n  DeleteMsgPort(self.port)\n  self.port := NIL\nENDPROC\n\n')
-  ENDIF
-  IF anyUses(forms, n, CK_MSGDLG)
-    put(fh, 'PROC delpheMessageDialog(text, buttons, windowTitle)\n  DEF d: PTR TO tMessageDialog\n  NEW d\n')
-    put(fh, '  d.text := text\n  d.buttons := buttons\n  d.windowTitle := windowTitle\nENDPROC d\n\n')
-    put(fh, 'PROC execute() OF tMessageDialog\n  DEF n, i, r\n  n := 1\n')
-    put(fh, '  FOR i := 0 TO StrLen(self.buttons) - 1\n    IF self.buttons[i] = \a|\a THEN n++\n  ENDFOR\n')
-    put(fh, '  r := EasyRequestArgs(NIL, [20, 0, self.windowTitle, self.text, self.buttons], NIL, NIL)\n')
-    put(fh, '  -> EasyRequest gives 0 for the last button\n  IF r = 0 THEN r := n\nENDPROC r\n\n')
-  ENDIF
-ENDPROC
-
--> The generated file has no module for TextEditor.mcc, so a memo gets its tags as constants
-PROC genConstants(fh, forms: PTR TO LONG, n)
-  DEF i, used
-  -> where the generated code sits in the program the compiler sees: buildSource puts
-  -> the numbers in, so that a line in an error message (NILCHECK and the like) can be
-  -> traced back to the user's code
-  put(fh, 'CONST DELPHE_FIRST = @@FIRST@@, DELPHE_LINES = @@LINES@@, DELPHE_CODE = @@CODE@@\n\n')
-  used := FALSE
-  FOR i := 0 TO n - 1
-    IF usesKind(forms[i], CK_MEMO) THEN used := TRUE
-  ENDFOR
-  IF used
-    put(fh, '-> tags of TextEditor.mcc (the Memo component)\nCONST MUIA_TextEditor_Contents = $ad000002, MUIA_TextEditor_Slider = $ad00001a\n\n')
-  ENDIF
-ENDPROC
-
--> Opens the generated file and writes its banner
-PROC openGenFile(path)
-  DEF fh
-  fh := Open(path, MODE_NEWFILE)
-  IF fh THEN put(fh, '-> Generated by DelphE from the form: do not edit. It is inserted into the program\n-> file at compile time, and rewritten every time you generate, compile or run.\n\n')
-ENDPROC fh
-
--> Old-style files had the generated code inside them between DELPHE BEGIN/END
--> markers. Returns the text without those regions, with the marker line where the
--> first one was, and its length; NIL if a region has no END.
-PROC stripRegions(buf, len)
-  DEF out, o, p, b, e, eEnd, first, m
-  out := NewM(len + 200, MEMF_PUBLIC)
-  o := 0
-  p := 0
-  first := TRUE
-  b := InStr(buf, beginMark())
-  WHILE b <> -1
-    e := InStr(buf, endMark(), b)
-    IF e = -1 THEN RETURN NIL, 0
-    eEnd := InStr(buf, '\n', e)
-    IF eEnd = -1 THEN eEnd := len ELSE eEnd := eEnd + 1
-    CopyMem(buf + p, out + o, b - p)
-    o := o + (b - p)
-    IF first
-      m := userMarkLine()
-      CopyMem(m, out + o, StrLen(m))
-      o := o + StrLen(m)
-      out[o] := 10
-      o++
-      first := FALSE
-    ENDIF
-    p := eEnd
-    b := InStr(buf, beginMark(), p)
-  ENDWHILE
-  CopyMem(buf + p, out + o, len - p)
-  o := o + (len - p)
-  out[o] := 0
-ENDPROC out, o
-
-PROC isIdentCh(c) IS ((c >= "A") AND (c <= "Z")) OR ((c >= "a") AND (c <= "z")) OR ((c >= "0") AND (c <= "9")) OR (c = "_")
-
--> The handlers in the user's text that belong to a form or frame that no longer
--> exists: "PROC name() OF tType" where tType is none of these forms and frames, is
--> not one of the helper types and is not an object the user defined. Fills
--> orphanList with them, comma separated.
-PROC scanOrphans(buf: PTR TO CHAR, forms: PTR TO LONG, n)
-  DEF p, q, tn, start, i, known, typeName, name, pat, win: PTR TO component, count
-  orphanList := String(300)
-  count := 0
-  p := InStr(buf, '() OF t')
-  WHILE p <> -1
-    start := p
-    WHILE (start > 0) AND isIdentCh(buf[start - 1]) DO start--
-    q := p + 7
-    tn := q
-    WHILE isIdentCh(buf[tn]) DO tn++
-    typeName := String(tn - q + 1)
-    IF tn > q THEN MidStr(typeName, buf, q, tn - q)
-    known := FALSE
-    FOR i := 0 TO n - 1
-      win := forms[i]
-      IF StrLen(win.name) = StrLen(typeName)
-        IF StrCmp(win.name, typeName, ALL) THEN known := TRUE
-      ENDIF
-    ENDFOR
-    IF StrCmp(typeName, 'FileDialog', ALL) AND (StrLen(typeName) = 10) THEN known := TRUE
-    IF StrCmp(typeName, 'MessageDialog', ALL) AND (StrLen(typeName) = 13) THEN known := TRUE
-    IF known = FALSE
-      pat := String(StrLen(typeName) + 12)
-      StrCopy(pat, 'OBJECT t', ALL)
-      StrAdd(pat, typeName, ALL)
-      IF InStr(buf, pat) <> -1 THEN known := TRUE
-    ENDIF
-    IF known = FALSE
-      count++
-      IF count > 1 THEN StrAdd(orphanList, ', ', ALL)
-      name := String(p - start + 1)
-      IF p > start THEN MidStr(name, buf, start, p - start)
-      StrAdd(orphanList, name, ALL)
-      StrAdd(orphanList, ' (t', ALL)
-      StrAdd(orphanList, typeName, ALL)
-      StrAdd(orphanList, ')', ALL)
-    ENDIF
-    p := InStr(buf, '() OF t', tn)
-  ENDWHILE
-  IF count = 0 THEN orphanList := NIL
-ENDPROC
-
--> The orphaned handlers found by the last generation, or NIL if there were none
-PROC orphanReport() IS orphanList
-
--> TRUE if the user's main() still has its own event loop, but a form uses window events or
--> timers, which only the generated loop (delpheRun) handles
-PROC oldLoopReport() IS oldLoop
-
--> Does any window have an OnClose handler?
-PROC anyWindowHandler(forms: PTR TO LONG, n)
-  DEF i, f: PTR TO component
-  FOR i := 0 TO n - 1
-    f := forms[i]
-    IF f.kind = CK_WINDOW
-      IF f.handler THEN RETURN TRUE
-    ENDIF
-  ENDFOR
-ENDPROC FALSE
-
-/*
-** Creates the user's program file, or brings it up to date: handler stubs are
-** appended for handlers it does not define yet, and an old-style file (with the
-** generated code inside it) is converted, keeping the old one as path.bak.
-** projName is NIL for a single form. Returns GEN_OK, GEN_WRITEFAIL or
-** GEN_NOMARKERS (the file has neither marker, so it is not one of ours).
-*/
-PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
-  DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended: PTR TO strbuf, old, res
-
-  appended := sbNew()
-  orphanList := NIL
-  oldLoop := FALSE
-  buf, len := readAll(path)
-
-  IF buf = NIL
-    FOR i := 0 TO n - 1
-      win := forms[i]
-      collectStubs(win, '', appended, win)
-    ENDFOR
-    fh := Open(path, MODE_NEWFILE)
-    IF fh = NIL
-      sbFree(appended)
-      RETURN GEN_WRITEFAIL
-    ENDIF
-    win := forms[0]
-    IF projName THEN genProjectHeader(fh, projName) ELSE genHeader(fh, win)
-    put(fh, '\n/*** your code ***/\n')
-    putMem(fh, appended.buf, appended.len)
-    IF projName THEN genProjectMain(fh) ELSE genMain(fh, win)
-    closeOut(fh)
-    sbFree(appended)
-    RETURN GEN_OK
-  ENDIF
-
-  res := GEN_OK
-  old := FALSE
-  cur := buf
-  clen := len
-  IF InStr(buf, beginMark()) <> -1
-    cur, clen := stripRegions(buf, len)
-    IF cur = NIL
-      res := GEN_NOMARKERS
-    ELSE
-      old := TRUE
-    ENDIF
-  ELSEIF InStr(buf, userMark()) = -1
-    res := GEN_NOMARKERS
-  ENDIF
-
-  IF res = GEN_OK
-    scanOrphans(cur, forms, n)
-    oldLoop := FALSE
-    IF InStr(cur, 'delpheRun()') = -1
-      IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN oldLoop := TRUE
-    ENDIF
-    FOR i := 0 TO n - 1
-      win := forms[i]
-      collectStubs(win, cur, appended, win)
-    ENDFOR
-    IF (old OR (appended.len > 0))
-      IF old THEN writeBackup(path, buf, len)
-      fh := Open(path, MODE_NEWFILE)
-      IF fh = NIL
-        res := GEN_WRITEFAIL
-      ELSE
-        putMem(fh, cur, clen)
-        putMem(fh, appended.buf, appended.len)
-        closeOut(fh)
-      ENDIF
-    ENDIF
-  ENDIF
-
-  -> the file was read for this one job: give its memory back
-  IF (cur <> NIL) AND (cur <> buf) THEN Dispose(cur)
-  Dispose(buf)
-  sbFree(appended)
-ENDPROC res
-
--> Writes the generated file (path.gen.e) and updates the user's file. Returns
--> GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
-PROC generateFile(path, win: PTR TO component)
-ENDPROC generateProject(path, win.name, [win], 1)
-
-/*
-** Writes the program the compiler gets: the user's file with the generated file
-** inserted after its marker line. Returns the number of the first inserted line
-** and how many lines were inserted, so that compiler messages can be traced
-** back, or -1, 0 if the files cannot be read or have no marker.
-*/
--> Replaces @@FIRST@@, @@LINES@@ and @@CODE@@ in the generated text with numbers. It stays on
--> its line, so no line numbers move. Returns the new text and its length.
-PROC expandMarks(g: PTR TO CHAR, glen, first, glines, codeLines)
-  DEF out: PTR TO CHAR, o, i, num: PTR TO CHAR, n
-  out := NewM(glen + 64, MEMF_PUBLIC)
-  num := String(16)
-  o := 0
-  i := 0
-  WHILE i < glen
-    IF (g[i] = "@") AND (g[i + 1] = "@")
-      n := -1
-      IF StrCmp(g + i, '@@FIRST@@', 9)
-        StringF(num, '\d', first)
-        n := 9
-      ELSEIF StrCmp(g + i, '@@LINES@@', 9)
-        StringF(num, '\d', glines)
-        n := 9
-      ELSEIF StrCmp(g + i, '@@CODE@@', 8)
-        StringF(num, '\d', codeLines)
-        n := 8
-      ENDIF
-      IF n > 0
-        CopyMem(num, out + o, StrLen(num))
-        o := o + StrLen(num)
-        i := i + n
-      ELSE
-        out[o] := g[i]
-        o++
-        i++
-      ENDIF
-    ELSE
-      out[o] := g[i]
-      o++
-      i++
-    ENDIF
-  ENDWHILE
-  out[o] := 0
-  DisposeLink(num)
-ENDPROC out, o
-
-PROC buildSource(userPath, buildPath)
-  DEF buf, len, gbuf, glen, g2, g2len, m, nx, fh, i, first, glines, cm, codeLine, codeLines, gp
-  gp := genPath(userPath)
-  buf, len := readAll(userPath)
-  gbuf, glen := readAll(gp)
-  DisposeLink(gp)
-  IF (buf = NIL) OR (gbuf = NIL)
-    IF buf THEN Dispose(buf)
-    IF gbuf THEN Dispose(gbuf)
-    RETURN -1, 0
-  ENDIF
-  m := InStr(buf, userMark())
-  IF m = -1
-    Dispose(buf)
-    Dispose(gbuf)
-    RETURN -1, 0
-  ENDIF
-  nx := InStr(buf, '\n', m)
-  IF nx = -1 THEN nx := len ELSE nx := nx + 1
-
-  first := 1
-  FOR i := 0 TO nx - 1
-    IF buf[i] = 10 THEN first++
-  ENDFOR
-  glines := 0
-  FOR i := 0 TO glen - 1
-    IF gbuf[i] = 10 THEN glines++
-  ENDFOR
-  IF glen > 0
-    IF gbuf[glen - 1] <> 10 THEN glines++
-  ENDIF
-
-  -> the line of the user's file that the code starts on (after the "your code" comment)
-  codeLine := nx
-  cm := InStr(buf, '/*** your code ***/', nx)
-  IF cm <> -1
-    codeLine := InStr(buf, '\n', cm)
-    IF codeLine = -1 THEN codeLine := len ELSE codeLine := codeLine + 1
-  ENDIF
-  codeLines := 0
-  FOR i := 0 TO codeLine - 1
-    IF buf[i] = 10 THEN codeLines++
-  ENDFOR
-  g2, g2len := expandMarks(gbuf, glen, first, glines, codeLines)
-  Dispose(gbuf)
-
-  fh := Open(buildPath, MODE_NEWFILE)
-  IF fh = NIL
-    Dispose(buf)
-    Dispose(g2)
-    RETURN -1, 0
-  ENDIF
-  Write(fh, buf, nx)
-  Write(fh, g2, g2len)
-  IF g2len > 0
-    IF g2[g2len - 1] <> 10 THEN Write(fh, '\n', 1)
-  ENDIF
-  IF len > nx THEN Write(fh, buf + nx, len - nx)
-  Close(fh)
-  Dispose(buf)
-  Dispose(g2)
-ENDPROC first, glines
 
 /*** projects: several forms in one program ***/
 
@@ -1725,51 +1145,8 @@ PROC genProjectMain(fh)
   put(fh, '\nPROC main()\n  delpheRun()\nENDPROC\n')
 ENDPROC
 
-/*
-** Writes the generated file of a project (path.gen.e): one OBJECT region per
-** form, the globals region, one procedure region per form and the run region,
-** then updates the user's file. forms is a list of window components (the
-** first is the main form). Returns GEN_OK, GEN_WRITEFAIL or GEN_NOMARKERS.
-*/
-PROC generateProject(path, projName, forms: PTR TO LONG, n)
-  DEF fh, i, win: PTR TO component, tag, all, total
 
-  win := forms[0]
-  genMainName := win.name
-
-  all := withFrames(path, forms, n)
-  total := ListLen(all)
-  fh := openGenFile(genPath(path))
-  IF fh = NIL THEN RETURN GEN_WRITEFAIL
-  genConstants(fh, all, total)
-  genRuntimeTypes(fh, all, total)
-  -> the objects of the frames, then of the forms
-  FOR i := n TO total - 1
-    win := ListItem(all, i)
-    tag := formTag('type', win)
-    genRegion(fh, win, tag, 1)
-    DisposeLink(tag)
-  ENDFOR
-  FOR i := 0 TO n - 1
-    win := forms[i]
-    tag := formTag('type', win)
-    genRegion(fh, win, tag, 1)
-    DisposeLink(tag)
-  ENDFOR
-  genGlobalsRegion(fh, forms, n)
-  genRuntimeProcs(fh, all, total)
-  FOR i := n TO total - 1
-    win := ListItem(all, i)
-    tag := formTag('form', win)
-    genRegion(fh, win, tag, 2)
-    DisposeLink(tag)
-  ENDFOR
-  FOR i := 0 TO n - 1
-    win := forms[i]
-    tag := formTag('form', win)
-    genRegion(fh, win, tag, 2)
-    DisposeLink(tag)
-  ENDFOR
-  genRunRegion(fh, projName, forms, n)
-  closeOut(fh)
-ENDPROC syncUserFile(path, projName, all, total)
+-> The form whose window opens first (the main form of a project)
+PROC setMainForm(name)
+  genMainName := name
+ENDPROC

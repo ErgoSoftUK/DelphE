@@ -12,7 +12,11 @@ cd src
 evo FormModel NOPROGRESS >> /build.out
 evo MForm NOPROGRESS >> /build.out
 evo Util NOPROGRESS >> /build.out
+evo Toolchain NOPROGRESS >> /build.out
+evo GenOut NOPROGRESS >> /build.out
+evo GenRuntime NOPROGRESS >> /build.out
 evo Generator NOPROGRESS >> /build.out
+evo GenFiles NOPROGRESS >> /build.out
 evo UserFile NOPROGRESS ADDBUF 3 >> /build.out
 evo Project NOPROGRESS >> /build.out
 evo Highlight NOPROGRESS >> /build.out

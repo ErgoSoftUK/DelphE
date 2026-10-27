@@ -35,7 +35,10 @@ the **real MUI objects** for its preview, so the preview is the genuine article.
 2. `FormModel.e` holds the tree: a `component` object with kind, name, title,
    handler, properties and child/sibling links.
 3. `Builder.e` creates MUI objects from the tree at runtime.
-4. `Generator.e` writes E source for the same tree.
+4. `Generator.e` writes E source for the same tree. The generator is four modules: `GenOut` (buffered
+   output), `GenRuntime` (the helper code a generated file carries), `Generator` (form to E) and
+   `GenFiles` (the user file and the program the compiler gets). The kinds of component are one
+   table in FormModel.e (`kindTable`), and the designer menus one table in Designer.e (`menuSpec`).
 5. The designer edits the tree and drives all of the above.
 
 Generated code, not runtime reflection: E has no reflection, and generated

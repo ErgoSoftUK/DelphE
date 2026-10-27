@@ -11,7 +11,7 @@
 OPT LARGE
 
 MODULE 'dos/dos', 'exec/memory', '*/dunit/DUnit', '*/src/FormModel', '*/src/MForm',
-       '*/src/Util', '*/src/Generator', '*/src/UserFile', '*/src/Highlight'
+       '*/src/Util', '*/src/Generator', '*/src/GenOut', '*/src/GenFiles', '*/src/UserFile', '*/src/Highlight'
 
 /*** helpers ***/
 
@@ -49,6 +49,28 @@ PROC testKindNames()
     assertEquals(k, kindFromName(kindName(k)), 'every kind has a name that finds it again')
   ENDFOR
   assertEquals(-1, kindFromName('Nonsense'), 'an unknown name')
+ENDPROC
+
+-> The table of kinds: a row for each kind of the ENUM, names that find themselves, and events that
+-> come with a handler suffix
+PROC testKindTable()
+  DEF k
+  assertEquals(CK_TIMER + 1, ListLen(kindTable()), 'one row for each kind')
+  FOR k := CK_WINDOW TO CK_TIMER
+    assertNotNil(kindName(k), 'every kind has a name')
+    IF eventName(k)
+      assertNotNil(eventSuffix(k), 'an event has a handler suffix')
+    ELSE
+      assertNil(eventSuffix(k), 'and no event has none')
+    ENDIF
+  ENDFOR
+  assertStrEquals('OnClick', eventName(CK_BUTTON), NIL)
+  assertStrEquals('Click', eventSuffix(CK_BUTTON), NIL)
+  assertStrEquals('btn', kindPrefix(CK_BUTTON), NIL)
+  assertStrEquals('Button', kindTitle(CK_BUTTON), NIL)
+  assertStrEquals('TextEditor.mcc', kindClass(CK_MEMO), 'a kind that needs a MUI class')
+  assertNil(kindClass(CK_BUTTON), NIL)
+  assertNil(eventName(99), 'a kind that is not in the table is quiet')
 ENDPROC
 
 PROC testChildren()
@@ -421,6 +443,7 @@ PROC main()
 
   duBegin('FormModel')
   duTest('kind names', {testKindNames})
+  duTest('the table of kinds', {testKindTable})
   duTest('children', {testChildren})
   duTest('cloneTree', {testCloneTree})
   duTest('nthItem', {testNthItem})

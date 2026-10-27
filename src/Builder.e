@@ -51,11 +51,6 @@ PROC splitItems(s)
   ListAdd(l, [NIL], 1)
 ENDPROC l
 
--> Optional numbers with a default
-PROC numberOr(c: PTR TO component, bit, v, dflt)
-  IF c.propFlags AND bit THEN RETURN v
-ENDPROC dflt
-
 -> The MUIA_Font value for a font index (see fontName in FormModel)
 PROC fontValue(idx)
   SELECT idx

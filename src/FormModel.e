@@ -57,10 +57,57 @@ ENDPROC
 PROC isContainer(kind) IS (kind = CK_WINDOW) OR (kind = CK_VGROUP) OR (kind = CK_HGROUP) OR (kind = CK_PAGES) OR (kind = CK_COLGROUP) OR (kind = CK_SCROLL) OR (kind = CK_UTILS) OR (kind = CK_FRAME) OR
                           (kind = CK_MENUSTRIP) OR (kind = CK_MENU) OR (kind = CK_MENUITEM)
 
-PROC kindName(kind) IS ListItem(['Window', 'VGroup', 'HGroup', 'Button', 'Text', 'String', 'Check',
-                                  'Cycle', 'Radio', 'Slider', 'Gauge', 'List', 'Pages', 'Spacer', 'ColGroup', 'Scroll', 'Memo',
-                                  'Utilities', 'FileDialog', 'MessageDialog', 'Frame', 'Use',
-                                  'MenuStrip', 'Menu', 'MenuItem', 'Balance', 'Timer'], kind)
+/*
+** The facts about each kind, one row per kind, in the order of the ENUM at the top. Adding a
+** kind is a name in the ENUM and a row here; the rest of the code asks the row.
+**
+**   name      the name in .mform files and in the tree
+**   prefix    what a new one is named after: lbl -> lbl1, lbl2 ... (NIL: not added from the palette)
+**   title     the title a new one starts with (NIL: none)
+**   event     the one event it has, as the designer shows it (NIL: none)
+**   suffix    what a default handler name ends in: btnOk + Click = btnOkClick
+**   class     the MUI class file it needs besides MUI itself (NIL: none)
+*/
+CONST KI_NAME = 0, KI_PREFIX = 1, KI_TITLE = 2, KI_EVENT = 3, KI_SUFFIX = 4, KI_CLASS = 5
+
+PROC kindTable() IS [
+  ['Window',        NIL,         NIL,              'OnClose',       'Close',       NIL],
+  ['VGroup',        'vgrp',      NIL,              NIL,             NIL,           NIL],
+  ['HGroup',        'hgrp',      NIL,              NIL,             NIL,           NIL],
+  ['Button',        'btn',       'Button',         'OnClick',       'Click',       NIL],
+  ['Text',          'lbl',       'Label',          NIL,             NIL,           NIL],
+  ['String',        'edt',       '',               'OnEnter',       'Enter',       NIL],
+  ['Check',         'chk',       '',               'OnChange',      'Change',      NIL],
+  ['Cycle',         'cyc',       'One|Two|Three',  'OnChange',      'Change',      NIL],
+  ['Radio',         'rad',       'One|Two|Three',  'OnChange',      'Change',      NIL],
+  ['Slider',        'sld',       '',               'OnChange',      'Change',      NIL],
+  ['Gauge',         'gau',       '',               NIL,             NIL,           NIL],
+  ['List',          'lst',       'One|Two|Three',  'OnDoubleClick', 'DoubleClick', NIL],
+  ['Pages',         'pgs',       'Page 1|Page 2',  NIL,             NIL,           NIL],
+  ['Spacer',        'spc',       NIL,              NIL,             NIL,           NIL],
+  ['ColGroup',      'col',       NIL,              NIL,             NIL,           NIL],
+  ['Scroll',        'scr',       NIL,              NIL,             NIL,           NIL],
+  ['Memo',          'mem',       '',               NIL,             NIL,           'TextEditor.mcc'],
+  ['Utilities',     'utilities', NIL,              NIL,             NIL,           NIL],
+  ['FileDialog',    'fdlg',      'Select a file',  NIL,             NIL,           NIL],
+  ['MessageDialog', 'mdlg',      'Are you sure?',  NIL,             NIL,           NIL],
+  ['Frame',         'frm',       NIL,              NIL,             NIL,           NIL],
+  ['Use',           'use',       NIL,              NIL,             NIL,           NIL],
+  ['MenuStrip',     'mstrip',    NIL,              NIL,             NIL,           NIL],
+  ['Menu',          'mnu',       'Menu',           NIL,             NIL,           NIL],
+  ['MenuItem',      'mni',       'Item',           'OnSelect',      'Select',      NIL],
+  ['Balance',       'bal',       NIL,              NIL,             NIL,           NIL],
+  ['Timer',         'tmr',       NIL,              'OnTimer',       'Timer',       NIL]
+]
+
+-> The row of a kind (a row of NILs for a kind that is not in the table)
+PROC kindRow(kind)
+  IF (kind < 0) OR (kind > CK_TIMER) THEN RETURN ['?', NIL, NIL, NIL, NIL, NIL]
+ENDPROC ListItem(kindTable(), kind)
+
+PROC kindName(kind) IS ListItem(kindRow(kind), KI_NAME)
+PROC kindPrefix(kind) IS ListItem(kindRow(kind), KI_PREFIX)
+PROC kindTitle(kind) IS ListItem(kindRow(kind), KI_TITLE)
 
 -> returns -1 for an unknown name
 PROC kindFromName(s)
@@ -129,57 +176,16 @@ PROC childCount() OF component
   ENDWHILE
 ENDPROC n
 
--> Each kind with an event has exactly one, named here (NIL = no events)
-PROC eventName(kind)
-  SELECT kind
-    CASE CK_BUTTON
-      RETURN 'OnClick'
-    CASE CK_STRING
-      RETURN 'OnEnter'
-    CASE CK_CHECK
-      RETURN 'OnChange'
-    CASE CK_CYCLE
-      RETURN 'OnChange'
-    CASE CK_RADIO
-      RETURN 'OnChange'
-    CASE CK_SLIDER
-      RETURN 'OnChange'
-    CASE CK_LIST
-      RETURN 'OnDoubleClick'
-    CASE CK_MENUITEM
-      RETURN 'OnSelect'
-    CASE CK_WINDOW
-      RETURN 'OnClose'
-    CASE CK_TIMER
-      RETURN 'OnTimer'
-  ENDSELECT
-ENDPROC NIL
+-> Each kind with an event has exactly one, named in its row (NIL = no events)
+PROC eventName(kind) IS ListItem(kindRow(kind), KI_EVENT)
 
 -> Suffix for a default handler name: btnOk + Click = btnOkClick
-PROC eventSuffix(kind)
-  SELECT kind
-    CASE CK_BUTTON
-      RETURN 'Click'
-    CASE CK_STRING
-      RETURN 'Enter'
-    CASE CK_CHECK
-      RETURN 'Change'
-    CASE CK_CYCLE
-      RETURN 'Change'
-    CASE CK_RADIO
-      RETURN 'Change'
-    CASE CK_SLIDER
-      RETURN 'Change'
-    CASE CK_LIST
-      RETURN 'DoubleClick'
-    CASE CK_MENUITEM
-      RETURN 'Select'
-    CASE CK_WINDOW
-      RETURN 'Close'
-    CASE CK_TIMER
-      RETURN 'Timer'
-  ENDSELECT
-ENDPROC NIL
+PROC eventSuffix(kind) IS ListItem(kindRow(kind), KI_SUFFIX)
+
+-> A number property if it is set, or its default
+PROC numberOr(c: PTR TO component, bit, v, dflt)
+  IF c.propFlags AND bit THEN RETURN v
+ENDPROC dflt
 
 -> A deep copy of c and everything under it. Strings are shared with the
 -> original: they are never changed in place, only replaced, so that is safe.
@@ -309,9 +315,7 @@ PROC effectiveFont(c: PTR TO component)
 ENDPROC 0
 
 -> The MUI class file a kind needs beyond MUI itself, or NIL for the built-in ones
-PROC kindClass(kind)
-  IF kind = CK_MEMO THEN RETURN 'TextEditor.mcc'
-ENDPROC NIL
+PROC kindClass(kind) IS ListItem(kindRow(kind), KI_CLASS)
 
 -> Does c or anything under it have this kind?
 PROC usesKind(c: PTR TO component, kind)
