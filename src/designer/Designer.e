@@ -1344,8 +1344,25 @@ PROC isEvo(name)
   ENDIF
 ENDPROC FALSE
 
+-> The full path of a folder (a path relative to the current folder will not do from another
+-> folder), ending in : or /, as an E-string, or NIL. An empty path is the current folder.
+PROC absoluteDir(dir)
+  DEF lock, buf[300]: ARRAY OF CHAR, s, n, ok
+  lock := Lock(dir, SHARED_LOCK)
+  IF lock = NIL THEN RETURN NIL
+  ok := NameFromLock(lock, buf, 298)
+  UnLock(lock)
+  IF ok = FALSE THEN RETURN NIL
+  n := StrLen(buf)
+  s := String(n + 2)
+  StrCopy(s, buf, ALL)
+  IF n > 0
+    IF (buf[n - 1] <> ":") AND (buf[n - 1] <> "/") THEN StrAdd(s, '/', ALL)
+  ENDIF
+ENDPROC s
+
 PROC compileCode()
-  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct
+  DEF dir, lock, old, cmd, buf, len, clean, ok, p, line, msg, bdir, bfile, first, glines, bl, comp, direct, absd
 
   -> bring the generated file up to date first (this also saves the editor)
   IF regenerate() <> GEN_OK THEN RETURN FALSE
@@ -1377,7 +1394,7 @@ PROC compileCode()
 
   lock, old := enterDir(bdir)
   direct := FALSE
-  cmd := String(StrLen(programName()) * 2 + StrLen(comp) + StrLen(dir) + 160)
+  cmd := String(StrLen(programName()) * 2 + StrLen(comp) + StrLen(dir) + 460)
   StrCopy(cmd, comp, ALL)
   StrAdd(cmd, ' ', ALL)
   StrAdd(cmd, programName(), ALL)
@@ -1385,11 +1402,12 @@ PROC compileCode()
   IF isEvo(comp)
     StrAdd(cmd, ' NOPROGRESS ADDBUF 3', ALL)
     IF debugOn() THEN StrAdd(cmd, ' NILCHECK ARRAYCHECK STACKCHECK', ALL)
-    -> E-VO can write the program where it belongs, with no copy afterwards (not with the
-    -> current folder, which a path made here would not reach from the work drawer)
-    IF StrLen(dir) > 0
+    -> E-VO can write the program where it belongs, with no copy afterwards. The compiler
+    -> runs in the work drawer, so the path has to be a full one.
+    absd := absoluteDir(dir)
+    IF absd
       StrAdd(cmd, ' EXENAME \q', ALL)
-      StrAdd(cmd, dir, ALL)
+      StrAdd(cmd, absd, ALL)
       StrAdd(cmd, programName(), ALL)
       StrAdd(cmd, '\q', ALL)
       direct := TRUE
