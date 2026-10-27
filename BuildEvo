@@ -31,4 +31,12 @@ evo MainFormBuilt NOPROGRESS ADDBUF 3 >> /build.out
 evo PenTest NOPROGRESS >> /build.out
 evo Bench NOPROGRESS >> /build.out
 cd /
+cd dunit
+evo DUnit NOPROGRESS ADDBUF 3 >> /build.out
+evo SelfTest NOPROGRESS ADDBUF 3 >> /build.out
+SelfTest > /tests.out
+cd /tests
+evo Tests NOPROGRESS ADDBUF 3 >> /build.out
+Tests >> /tests.out
+cd /
 type build.out

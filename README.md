@@ -132,6 +132,14 @@ execute Build
 Output goes to `build.out`. This compiles the modules, runs the smoke test
 (`gentest.out`), and builds `src/preview` and `src/designer/designer`.
 
+## Tests
+
+`dunit/` is DUnit, a small unit test framework in the style of JUnit and NUnit (see its README), and
+`tests/Tests.e` is DelphE's own test suite: 19 tests of the form model, the `.mform` reader and
+writer, the helpers, the syntax highlighter, the code file sections and the generator. They need no
+screen. `Build` and `BuildEvo` compile and run them and write the report to `tests.out`
+(`dunit/SelfTest.e` tests DUnit itself first).
+
 ## Building with E-VO
 
 [E-VO](https://github.com/dmcoles/EVO) (a maintained Amiga E compiler) builds all of DelphE, and the

@@ -302,6 +302,14 @@ One window, in the style of Delphi 3. MUI keeps its position and size.
   (`MUIM_TextEditor_ARexxCmd`), elsewhere they act on the form; the menu items
   are always enabled.
 
+### Tests
+
+DUnit (`dunit/DUnit.e`) registers tests by hand (E has no reflection): `duTest(name, {proc})`. A failed
+assert raises `"DUFL"`, which `duRunOne` catches (a `HANDLE` procedure), so the next test runs; any other
+exception is an error and is described by `duDescribe`. `tests/Tests.e` covers the pure parts of DelphE: the
+model, `MForm`, `Util`, `Highlight`, `UserFile` and `Generator` (writing to `RAM:dunit`). The GUI is not
+tested. To add a test: write a procedure, register it with `duTest` in `main`.
+
 ### E-VO
 
 E-VO 3.9.4 compiles DelphE and the programs it generates. Differences found: it cannot read E 3.3a's

@@ -29,3 +29,6 @@ tools/bench_default
 tools/bench_opti
 examples/showcase/Mixer
 examples/delphe/DelphEself
+tests/Tests
+dunit/SelfTest
+tests.out

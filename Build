@@ -22,4 +22,12 @@ ec MainFormBuilt >> /build.out
 ec PenTest >> /build.out
 ec Bench >> /build.out
 cd /
+cd dunit
+ec DUnit >> /build.out
+ec SelfTest >> /build.out
+SelfTest > /tests.out
+cd /tests
+ec Tests >> /build.out
+Tests >> /tests.out
+cd /
 type build.out
