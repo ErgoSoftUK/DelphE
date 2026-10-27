@@ -1,4 +1,4 @@
-Window Mixer "Amiga Mixer" :arg="MIXR" :fixw=560 :fixh=380 :center @OnClose=windowClose
+Window Mixer "Amiga Mixer" @OnClose=windowClose :fixw=560 :fixh=380 :arg="MIXR" :center
   VGroup root
     Pages tabs "Mixer|Equaliser|Output"
       VGroup mixerPage
@@ -28,7 +28,7 @@ Window Mixer "Amiga Mixer" :arg="MIXR" :fixw=560 :fixh=380 :center @OnClose=wind
         Spacer eqFill
       VGroup outPage
         ColGroup out :value=2
-          Text lblOutput "Output:" :weight=0
+          Text lblOutput "Out:" :weight=0
           Cycle cycOutput "Speakers|Headphones|Line out"
           Text lblMode "Mode:" :weight=0
           Radio radMode "Stereo|Mono|Surround"
@@ -40,7 +40,7 @@ Window Mixer "Amiga Mixer" :arg="MIXR" :fixw=560 :fixh=380 :center @OnClose=wind
           Memo memoNotes "Mix for the demo tape"
     HGroup footer :weight=0
       Text txtStatus "Ready" :weight=200
-      Gauge gauMaster :max=100 :value=0 :fixh=18
+      Gauge gauMaster :fixh=18 :max=100 :value=0
   Utilities utilities
     MenuStrip menuStrip
       Menu mnuProject "Project"
@@ -57,4 +57,4 @@ Window Mixer "Amiga Mixer" :arg="MIXR" :fixw=560 :fixh=380 :center @OnClose=wind
     FileDialog fdlgSave "Save preset as" :arg="#?.preset" :save
     MessageDialog mdlgAbout "Amiga Mixer - made with DelphE" :arg="Nice"
     MessageDialog mdlgQuit "Leave the mixer?" :arg="Leave|Stay"
-    Timer tmrMeters :value=120 @OnTimer=tmrMetersTimer
+    Timer tmrMeters @OnTimer=tmrMetersTimer :value=120
