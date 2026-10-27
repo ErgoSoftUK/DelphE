@@ -3,6 +3,7 @@
 ;   build.trigger  create this file to start a build
 ;   build.done     written when the build has finished (read build.out then)
 ;   build.stop     create this file to make the watcher exit
+;   tests.trigger  create this file to run only the tests (tests.done when finished)
 ;
 ; Each run does one check and then starts a fresh copy of itself, so there is
 ; no looping (Skip BACK misbehaved after running Build). Progress is logged
@@ -22,6 +23,16 @@ else
     execute Build
     echo "done" > build.done
     echo "build finished" >> watch.log
+  endif
+  if exists tests.trigger
+    echo "tests trigger seen" >> watch.log
+    delete tests.trigger
+    if exists tests.done
+      delete tests.done
+    endif
+    execute RunTests
+    echo "done" > tests.done
+    echo "tests finished" >> watch.log
   endif
   wait 1 sec
   run >NIL: <NIL: execute Watch

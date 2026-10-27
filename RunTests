@@ -1,0 +1,13 @@
+; Compile and run only the tests, with ec. The modules must be up to date: Build does that.
+; Run from the DelphE drawer:  execute RunTests
+; The compiler output goes to tests.log, the test report to tests.out.
+echo "Compiling the tests.." > tests.log
+cd dunit
+ec DUnit >> /tests.log
+ec SelfTest >> /tests.log
+SelfTest > /tests.out
+cd /tests
+ec Tests >> /tests.log
+Tests >> /tests.out
+cd /
+type tests.out

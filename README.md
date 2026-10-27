@@ -140,6 +140,10 @@ writer, the helpers, the syntax highlighter, the code file sections and the gene
 screen. `Build` and `BuildEvo` compile and run them and write the report to `tests.out`
 (`dunit/SelfTest.e` tests DUnit itself first).
 
+To run only the tests, without a full build: `execute RunTests` (or `RunTestsEvo`) compiles and runs them,
+assuming the modules are up to date; the compiler output goes to `tests.log`. With the watcher running,
+creating a file `tests.trigger` does the same and writes `tests.done` when finished.
+
 ## Building with E-VO
 
 [E-VO](https://github.com/dmcoles/EVO) (a maintained Amiga E compiler) builds all of DelphE, and the

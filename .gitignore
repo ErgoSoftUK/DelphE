@@ -32,3 +32,6 @@ examples/delphe/DelphEself
 tests/Tests
 dunit/SelfTest
 tests.out
+tests.trigger
+tests.done
+tests.log
