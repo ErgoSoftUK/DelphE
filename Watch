@@ -1,12 +1,13 @@
-; Build watcher. Start once from the DelphE drawer:   run execute Watch
+; Build watcher. Start once from the DelphE drawer, in a shell where  execute SetupEvo  has been run:
+;   run execute Watch
 ;
-;   build.trigger  create this file to start a build
+;   build.trigger  create this file to start a build (BuildMake)
 ;   build.done     written when the build has finished (read build.out then)
 ;   build.stop     create this file to make the watcher exit
 ;   tests.trigger  create this file to run only the tests (tests.done when finished)
 ;
 ; Each run does one check and then starts a fresh copy of itself, so there is
-; no looping (Skip BACK misbehaved after running Build). Progress is logged
+; no looping (Skip BACK misbehaved after running a script). Progress is logged
 ; to watch.log.
 ;
 failat 21
@@ -20,7 +21,7 @@ else
     if exists build.done
       delete build.done
     endif
-    execute Build
+    execute BuildMake
     echo "done" > build.done
     echo "build finished" >> watch.log
   endif

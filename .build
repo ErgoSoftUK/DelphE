@@ -1,0 +1,134 @@
+# Written by tools/MakeBuild.pl from the MODULE lines of the sources: do not edit.
+# Build with:  execute BuildMake      (E-VO: run SetupEvo first)
+
+all: src/Preview src/designer/Designer tools/GenTest tools/MainFormBuilt tools/PenTest tools/Bench dunit/SelfTest tests/Tests
+  echo "compiled"
+
+runtests: dunit/SelfTest tests/Tests tools/GenTest
+  cd tools
+  GenTest > /gentest.out
+  cd /dunit
+  SelfTest > /tests.out
+  cd /tests
+  Tests >> /tests.out
+  cd /
+
+src/formmodel.m: src/FormModel.e
+  cd src
+  evo FormModel NOPROGRESS >> /build.out
+  cd /
+
+src/mform.m: src/MForm.e src/formmodel.m
+  cd src
+  evo MForm NOPROGRESS >> /build.out
+  cd /
+
+src/util.m: src/Util.e
+  cd src
+  evo Util NOPROGRESS >> /build.out
+  cd /
+
+src/toolchain.m: src/Toolchain.e
+  cd src
+  evo Toolchain NOPROGRESS >> /build.out
+  cd /
+
+src/genout.m: src/GenOut.e
+  cd src
+  evo GenOut NOPROGRESS >> /build.out
+  cd /
+
+src/genruntime.m: src/GenRuntime.e src/formmodel.m src/genout.m
+  cd src
+  evo GenRuntime NOPROGRESS >> /build.out
+  cd /
+
+src/generator.m: src/Generator.e src/formmodel.m src/mform.m src/util.m src/genout.m src/genruntime.m
+  cd src
+  evo Generator NOPROGRESS >> /build.out
+  cd /
+
+src/genfiles.m: src/GenFiles.e src/formmodel.m src/util.m src/genout.m src/genruntime.m src/generator.m
+  cd src
+  evo GenFiles NOPROGRESS >> /build.out
+  cd /
+
+src/userfile.m: src/UserFile.e src/generator.m
+  cd src
+  evo UserFile NOPROGRESS ADDBUF 3 >> /build.out
+  cd /
+
+src/project.m: src/Project.e src/mform.m src/util.m
+  cd src
+  evo Project NOPROGRESS >> /build.out
+  cd /
+
+src/highlight.m: src/Highlight.e
+  cd src
+  evo Highlight NOPROGRESS >> /build.out
+  cd /
+
+src/builder.m: src/Builder.e src/formmodel.m src/mform.m src/util.m
+  cd src
+  evo Builder NOPROGRESS >> /build.out
+  cd /
+
+src/Preview: src/Preview.e src/formmodel.m src/mform.m src/builder.m src/util.m
+  cd src
+  evo Preview NOPROGRESS >> /build.out
+  cd /
+
+src/mcc/listtree_mcc.m: src/mcc/Listtree_mcc.e
+  cd src/mcc
+  evo Listtree_mcc NOPROGRESS >> //build.out
+  cd //
+
+src/mcc/texteditor_mcc.m: src/mcc/TextEditor_MCC.e
+  cd src/mcc
+  evo TextEditor_MCC NOPROGRESS >> //build.out
+  cd //
+
+src/mcc/toolbar_mcc.m: src/mcc/Toolbar_mcc.e
+  cd src/mcc
+  evo Toolbar_mcc NOPROGRESS >> //build.out
+  cd //
+
+src/designer/Designer: src/designer/Designer.e src/formmodel.m src/mform.m src/builder.m src/generator.m src/genout.m src/genfiles.m src/util.m src/toolchain.m src/project.m src/highlight.m src/userfile.m src/mcc/listtree_mcc.m src/mcc/texteditor_mcc.m src/mcc/toolbar_mcc.m
+  cd src/designer
+  evo Designer NOPROGRESS ADDBUF 3 >> //build.out
+  cd //
+
+tools/GenTest: tools/GenTest.e src/formmodel.m src/mform.m src/generator.m src/genout.m src/genfiles.m
+  cd tools
+  evo GenTest NOPROGRESS ADDBUF 3 >> /build.out
+  cd /
+
+tools/MainFormBuilt: tools/MainFormBuilt.e
+  cd tools
+  evo MainFormBuilt NOPROGRESS ADDBUF 3 >> /build.out
+  cd /
+
+tools/PenTest: tools/PenTest.e
+  cd tools
+  evo PenTest NOPROGRESS >> /build.out
+  cd /
+
+tools/Bench: tools/Bench.e src/highlight.m
+  cd tools
+  evo Bench NOPROGRESS >> /build.out
+  cd /
+
+dunit/dunit.m: dunit/DUnit.e
+  cd dunit
+  evo DUnit NOPROGRESS ADDBUF 3 >> /build.out
+  cd /
+
+dunit/SelfTest: dunit/SelfTest.e dunit/dunit.m
+  cd dunit
+  evo SelfTest NOPROGRESS ADDBUF 3 >> /build.out
+  cd /
+
+tests/Tests: tests/Tests.e dunit/dunit.m src/formmodel.m src/mform.m src/util.m src/generator.m src/genout.m src/genfiles.m src/userfile.m src/highlight.m
+  cd tests
+  evo Tests NOPROGRESS ADDBUF 3 >> /build.out
+  cd /

@@ -1,4 +1,4 @@
-; Point the shell at E-VO instead of ec. Run once in the shell that starts WatchEvo:
+; Point the shell at E-VO. Run it first in every shell that builds DelphE or starts Watch:
 ;   execute SetupEvo
 ; E-VO's own modules come first; the E 3.3a modules (MUI and friends) are added after them.
 assign EVO: XFer:EVO

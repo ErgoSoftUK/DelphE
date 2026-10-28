@@ -46,7 +46,7 @@ ENDOBJECT
 
 DEF duTests: PTR TO dutest, duTestsEnd: PTR TO dutest,
     duFails: PTR TO dufailure, duFailsEnd: PTR TO dufailure,
-    duSuite, duSetUpFn, duTearDownFn,
+    duSuite, duSetUpFn, duTearDownFn, duFilter,
     duMsg, duTmp,
     duTotal, duPassed, duFailed, duErrored, duStatus, duStart
 
@@ -247,8 +247,16 @@ PROC duBegin(name)
 ENDPROC
 
 -> Adds a test: its name and the procedure, written {testName}
+-> Only the tests whose name contains this text will run (NIL: all of them)
+PROC duOnly(text)
+  duFilter := text
+ENDPROC
+
 PROC duTest(name, fn)
   DEF t: PTR TO dutest
+  IF duFilter
+    IF InStr(name, duFilter) = -1 THEN RETURN
+  ENDIF
   NEW t
   t.name := name
   t.fn := fn

@@ -24,7 +24,7 @@ MODULE 'dos/dos', 'exec/memory', '*FormModel', '*MForm', '*Util', '*GenOut', '*G
 
 CONST GEN_OK = 0, GEN_WRITEFAIL = 1, GEN_NOMARKERS = 2, GEN_NOWINDOW = 3
 
-DEF evCounter, genMainName, genBase, useCounter  -> genBase: the folder that the paths of used frames are relative to
+DEF evCounter, genMainName, genBase, useCounter, oldLoop, orphanList  -> genBase: the folder that the paths of used frames are relative to
 
 
 -> The MUIV_Font_ constant for a font index (see fontName in FormModel)
@@ -1149,4 +1149,22 @@ ENDPROC
 -> The form whose window opens first (the main form of a project)
 PROC setMainForm(name)
   genMainName := name
+ENDPROC
+
+-> What the last run of syncUserFile (GenFiles) found. The variables live here and not in GenFiles:
+-> under the emulator's JIT a program that wrote to the globals of GenFiles crashed on exit.
+
+-> The orphaned handlers found by the last generation, or NIL if there were none
+PROC orphanReport() IS orphanList
+
+PROC setOrphans(list)
+  orphanList := list
+ENDPROC
+
+-> TRUE if the user's main() still has its own event loop, but a form uses window events or
+-> timers, which only the generated loop (delpheRun) handles
+PROC oldLoopReport() IS oldLoop
+
+PROC setOldLoop(flag)
+  oldLoop := flag
 ENDPROC

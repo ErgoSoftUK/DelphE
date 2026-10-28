@@ -328,6 +328,17 @@ program into the project folder, so the copy step is skipped.
 The designer picks the compiler with the `DelphECompiler` variable
 (`compilerName`, `isEvo`) and adds `NOPROGRESS ADDBUF 3` for E-VO. See the README for setup.
 
+DelphE itself is built with E-VO and EBuild (E 3.3a's make clone). `tools/MakeBuild.pl` reads the
+`MODULE` lines of the sources and writes `.build`: one rule per module or program, depending on the
+`.m` files it imports, each compiled from its own folder. `BuildMake` runs EBuild, so an edit rebuilds
+only what depends on it. Two EBuild details cost time: a name that is not a file (`all`, and `runtests`, which runs the tests
+and is only made on request) can only be the first rule or be named on the command line, never be a dependency, and `FORCE` compiles a shared module again
+every time something needs it, which leaves earlier modules unreadable (use `BuildMake CLEAN`).
+The generator is four modules: `GenOut` (buffered output, growing texts, file helpers), `GenRuntime`
+(the helper code a generated file carries), `Generator` (form to E) and `GenFiles` (the user file and
+the program the compiler gets). The kinds of component are one table in FormModel.e (`kindTable`),
+the designer's menus one table in Designer.e (`menuSpec`), and the compiler choice is in `Toolchain.e`.
+
 ### How Designer.e is organised
 
 `Designer.e` is one program with shared state: the windows and gadgets, the form

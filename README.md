@@ -22,7 +22,7 @@ source.
   (a scrolling group) and Memo (a multi-line text editor; needs TextEditor.mcc).
   A component whose MUI class is not installed gets a greyed-out palette button.
 - **Vertical sliders and gauges:** tick "Vertical" for a Slider or Gauge.
-- **Compiler:** Build uses `ec` unless the variable `DelphECompiler` says otherwise: `setenv DelphECompiler evo`
+- **Compiler:** the designer's Build uses `ec` for your programs unless the variable `DelphECompiler` says otherwise: `setenv DelphECompiler evo`
   (and `copy ENV:DelphECompiler ENVARC:` to keep it) builds with E-VO, adding `NOPROGRESS` and
   `ADDBUF 3`. The status line says which compiler is running.
   With E-VO the program is written straight to your project folder (`EXENAME`), with no copy.
@@ -89,10 +89,12 @@ See `docs/DESIGN.md` for how it fits together.
 
 ## Requirements
 
-- Amiga E v3.3a (`ec` on your path).
-- MUI 3.8 (`muimaster.library`) and the MUI E modules (`libraries/mui`,
-  `muimaster`, ...), for example from the Amiga-E MUI developer package. They
-  must be where `ec` finds modules (`EMODULES:`).
+- [E-VO](https://github.com/dmcoles/EVO) 3.9.4, the maintained Amiga E compiler, which builds DelphE
+  (see "Setting up E-VO" below). Programs made with the designer can be compiled with E-VO or
+  with Amiga E v3.3a's `ec` (see `DelphECompiler` above).
+- MUI 3.8 (`muimaster.library`) and the MUI E modules (`libraries/mui`, `muimaster`, ...), for
+  example from the Amiga-E MUI developer package. They must be where the compiler finds modules
+  (`EMODULES:`).
 - `TextEditor.mcc`, `Listtree.mcc` and `Toolbar.mcc` installed. The designer won't start
   without them.
 - OS 3.x. Developed against an emulated 68k Amiga.
@@ -120,58 +122,77 @@ tools/              development tools: make-icons.ps1 (rebuilds the strips from 
 examples/           example forms and the demo project (demo.mproj)
                     examples/delphe: DelphE described in itself (see GAPS.md)
 scratch/            your own test files; git-ignores it, so it stays local
-Build               AmigaDOS script: compiles everything
+BuildMake           builds DelphE with E-VO and EBuild, which compiles only what changed
+.build              the rules for BuildMake, written by tools/MakeBuild.pl: do not edit
+tools/MakeBuild.pl  writes .build from the MODULE lines of the sources (PC side, DelphE only)
+RunTests            builds, then runs the tests (not part of BuildMake)
+CleanModules        deletes the compiled modules (for a full rebuild)
+SetupEvo            points the shell at E-VO: run it first in every shell
 Watch               optional build watcher (see below)
 docs/DESIGN.md      design notes, file formats, E and MUI gotchas
 ```
 
 ## Building
 
-From the DelphE drawer on the Amiga:
+From the DelphE drawer on the Amiga, in a shell where `execute SetupEvo` has been run:
 
 ```
-execute Build
+execute BuildMake
 ```
 
-Output goes to `build.out`. This compiles the modules, runs the smoke test
-(`gentest.out`), and builds `src/preview` and `src/designer/designer`.
+EBuild (the make clone that comes with E v3.3a, in `Src/Utils/Build`) compiles
+only what changed since the last build, in the right order. It is expected at
+`XFer:E_v3.3a/Src/Utils/Build/build`: edit `BuildMake` for your drawers. The output lists each file it
+builds ("Set target"), then the compiler's report from `build.out`. It builds `src/preview` and `src/designer/designer`, and compiles the smoke test and the unit tests without
+running them (see "Tests"). EBuild's full output is in `T:ebuild.log`.
+
+- `execute BuildMake CLEAN` deletes the compiled modules first, for a full rebuild. Use that and
+  not EBuild's `FORCE`, which compiles a shared module again every time something needs it and leaves
+  modules that were built before it unreadable.
+- `.build` is written by `tools/MakeBuild.pl` from the `MODULE` lines of the sources. After changing one,
+  run `perl tools/MakeBuild.pl` on a PC (the Amiga side needs no Perl) and build again.
+  `perl tools/MakeBuild.pl debug` writes a `.build` with `NILCHECK ARRAYCHECK STACKCHECK`: a NIL pointer,
+  an index out of range or a stack overflow then stops the program with the line it happened on.
+  Build with `CLEAN` when you switch between the two.
 
 ## Tests
 
 `dunit/` is DUnit, a small unit test framework in the style of JUnit and NUnit (see its README), and
-`tests/Tests.e` is DelphE's own test suite: 19 tests of the form model, the `.mform` reader and
+`tests/Tests.e` is DelphE's own test suite: 26 tests of the form model, the `.mform` reader and
 writer, the helpers, the syntax highlighter, the code file sections and the generator. They need no
-screen. `Build` and `BuildEvo` compile and run them and write the report to `tests.out`
-(`dunit/SelfTest.e` tests DUnit itself first).
-The test program imports a lot of modules, so `ec` needs `ADDBUF 3` for it too (the scripts have it).
+screen. `execute RunTests` builds what changed, then runs the smoke test (`gentest.out`), DUnit's own
+tests and the DelphE tests, and writes the report to `tests.out` (`dunit/SelfTest.e` tests DUnit
+itself first). A plain `BuildMake` compiles them but does not run them.
 
-To run only the tests, without a full build: `execute RunTests` (or `RunTestsEvo`) compiles and runs them,
-assuming the modules are up to date; the compiler output goes to `tests.log`. With the watcher running,
-creating a file `tests.trigger` does the same and writes `tests.done` when finished.
+With the watcher running, creating a file `tests.trigger` does the same and writes `tests.done` when
+finished. `tests/Tests 3`
+runs only the third suite (Limits, Language, FormModel, MForm, Util, Highlight, UserFile, Generator
+are 1 to 8), and `tests/Tests 8 keeps` only the tests of suite 8 whose name contains "keeps".
 
-## Building with E-VO
+## Setting up E-VO
 
-[E-VO](https://github.com/dmcoles/EVO) (a maintained Amiga E compiler) builds all of DelphE, and the
-designer can use it for the programs it makes (see `DelphECompiler` above). In a trial, with E-VO
-3.9.4, every module and program compiled, and the designer and preview ran. What it needs:
+DelphE is built with E-VO 3.9.4 (earlier versions of this project used `ec`, which has not been
+maintained since 1997). What it needs:
 
 - **Install:** the Aminet package `dev/e/evo.lha`. `execute SetupEvo` points `EMODULES:` at E-VO's
-  modules first, then at the E 3.3a ones (it assumes `XFer:EVO` and `XFer:Amiga-E/Modules`: edit it
-  for your drawers). Note what `EMODULES:` was before, to switch back to `ec`.
-- **The MUI modules must be built again.** E-VO cannot read E 3.3a's `libraries/mui.m`. Copy `mui.e`
+  modules first, then at the E 3.3a ones for MUI and friends (it assumes `XFer:EVO` and
+  `XFer:Amiga-E/Modules`: edit it for your drawers).
+- **The MUI modules must be built for E-VO.** It cannot read E 3.3a's `libraries/mui.m`. Copy `mui.e`
   and `muip.e` from your E 3.3a `Modules/libraries` to `EVO:modules/libraries`, and in `mui.e` delete
-  everything after the `/*** End Of File ***/` line (stray text from `muip.e`). `BuildEvo` compiles
-  them. `muimaster.m` is fine as it is.
-- **`ADDBUF 3`:** the big programs need it ("workspace full!" otherwise).
+  everything after the `/*** End Of File ***/` line (stray text from `muip.e`). `BuildMake` compiles
+  them the first time (when `EVO:modules/libraries/mui.m` is missing). `muimaster.m` is fine as it is.
+- **`ADDBUF 3`:** the big programs need it ("workspace full!" otherwise); the rules have it.
 - **`*` in a module path** means the current folder for E-VO, but the folder of the source file for
-  `ec`. The designer is therefore compiled from its own folder.
-- **Modules:** `ec` and E-VO write modules the other cannot read. Use a separate copy of the folder
-  for E-VO, or `execute CleanModules` when you switch.
+  `ec`. Each file is therefore compiled from its own folder (see `.build`).
 - **Speed and size:** the `OPTI` switch makes programs about 8% smaller and gave no measurable speed
-  change (`tools/Bench.e`); it is not used by `BuildEvo`. E-VO's own gains are the workspace fix,
-  clean output (`NOPROGRESS`) and its bug fixes and checks.
+  change (`tools/Bench.e`); it is not used. E-VO's own gains are the workspace fix, clean output
+  (`NOPROGRESS`), its bug fixes and its checks.
 
-`BuildEvo`, `WatchEvo` and `SetupEvo` are the E-VO versions of `Build` and `Watch`.
+**Known problem with a JIT emulator.** With the emulator's JIT on and no MMU, the test program
+(`tests/Tests`) crashes with a Software Failure when it exits, after all its tests have passed. It
+happens with ec and with E-VO, only for runs that generate files (`Tests 1`, `Tests 8`), and the designer
+exits cleanly. The crash is a return to address 0. We did not find the cause. Building and using DelphE
+is fine with JIT on: only `RunTests` needs JIT off or the MMU on.
 
 ## Running
 
@@ -185,15 +206,15 @@ With no argument, both open `examples/sample.mform`.
 ## Build watcher
 
 `Watch` lets something outside the Amiga trigger builds, which is handy when
-the source tree is shared with a host machine:
+the source tree is shared with a host machine. Run it from a shell where `execute SetupEvo` has been run:
 
 ```
 run execute Watch
 ```
 
-Creating a file called `build.trigger` runs `Build`; `build.done` appears when
-it finishes, and the results are in `build.out`. Creating `build.stop` stops
-the watcher.
+Creating a file called `build.trigger` runs `BuildMake`; `build.done` appears when
+it finishes, and the results are in `build.out`. Creating `tests.trigger` runs `RunTests`
+(`tests.done`). Creating `build.stop` stops the watcher.
 
 ## Using the designer
 

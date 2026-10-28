@@ -10,8 +10,6 @@ OPT LARGE
 
 MODULE 'dos/dos', 'exec/memory', '*FormModel', '*Util', '*GenOut', '*GenRuntime', '*Generator'
 
-DEF oldLoop, orphanList
-
 -> Old-style files had the generated code inside them between DELPHE BEGIN/END
 -> markers. Returns the text without those regions, with the marker line where the
 -> first one was, and its length; NIL if a region has no END.
@@ -49,11 +47,11 @@ PROC isIdentCh(c) IS ((c >= "A") AND (c <= "Z")) OR ((c >= "a") AND (c <= "z")) 
 
 -> The handlers in the user's text that belong to a form or frame that no longer
 -> exists: "PROC name() OF tType" where tType is none of these forms and frames, is
--> not one of the helper types and is not an object the user defined. Fills
--> orphanList with them, comma separated.
+-> not one of the helper types and is not an object the user defined. Hands the list of them
+-> (comma separated) to setOrphans.
 PROC scanOrphans(buf: PTR TO CHAR, forms: PTR TO LONG, n)
-  DEF p, q, tn, start, i, known, typeName, name, pat, win: PTR TO component, count
-  orphanList := String(300)
+  DEF p, q, tn, start, i, known, typeName, name, pat, win: PTR TO component, count, list
+  list := String(300)
   count := 0
   p := InStr(buf, '() OF t')
   WHILE p <> -1
@@ -81,25 +79,19 @@ PROC scanOrphans(buf: PTR TO CHAR, forms: PTR TO LONG, n)
     ENDIF
     IF known = FALSE
       count++
-      IF count > 1 THEN StrAdd(orphanList, ', ', ALL)
+      IF count > 1 THEN StrAdd(list, ', ', ALL)
       name := String(p - start + 1)
       IF p > start THEN MidStr(name, buf, start, p - start)
-      StrAdd(orphanList, name, ALL)
-      StrAdd(orphanList, ' (t', ALL)
-      StrAdd(orphanList, typeName, ALL)
-      StrAdd(orphanList, ')', ALL)
+      StrAdd(list, name, ALL)
+      StrAdd(list, ' (t', ALL)
+      StrAdd(list, typeName, ALL)
+      StrAdd(list, ')', ALL)
     ENDIF
     p := InStr(buf, '() OF t', tn)
   ENDWHILE
-  IF count = 0 THEN orphanList := NIL
+  IF count = 0 THEN list := NIL
+  setOrphans(list)
 ENDPROC
-
--> The orphaned handlers found by the last generation, or NIL if there were none
-PROC orphanReport() IS orphanList
-
--> TRUE if the user's main() still has its own event loop, but a form uses window events or
--> timers, which only the generated loop (delpheRun) handles
-PROC oldLoopReport() IS oldLoop
 
 -> Does any window have an OnClose handler?
 PROC anyWindowHandler(forms: PTR TO LONG, n)
@@ -123,8 +115,8 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
   DEF buf, len, cur, clen, fh, i, win: PTR TO component, appended: PTR TO strbuf, old, res
 
   appended := sbNew()
-  orphanList := NIL
-  oldLoop := FALSE
+  setOrphans(NIL)
+  setOldLoop(FALSE)
   buf, len := readAll(path)
 
   IF buf = NIL
@@ -164,9 +156,9 @@ PROC syncUserFile(path, projName, forms: PTR TO LONG, n)
 
   IF res = GEN_OK
     scanOrphans(cur, forms, n)
-    oldLoop := FALSE
+    setOldLoop(FALSE)
     IF InStr(cur, 'delpheRun()') = -1
-      IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN oldLoop := TRUE
+      IF anyUses(forms, n, CK_TIMER) OR anyWindowHandler(forms, n) THEN setOldLoop(TRUE)
     ENDIF
     FOR i := 0 TO n - 1
       win := forms[i]

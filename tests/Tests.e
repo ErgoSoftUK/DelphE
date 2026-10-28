@@ -2,16 +2,18 @@
 ** DelphE's own unit tests, written with DUnit. They need no MUI and no screen.
 **
 **   cd tests
-**   ec Tests ADDBUF 3 (or: evo Tests NOPROGRESS ADDBUF 3)
+**   evo Tests NOPROGRESS ADDBUF 3 (from this folder; BuildMake and RunTests do it)
 **   Tests
 **
-** Build runs them and writes the report to tests.out. The tests that write files use RAM:dunit.
+** RunTests (BuildMake runtests) runs them and writes the report to tests.out. The tests that write files use RAM:dunit.
 */
 
 OPT LARGE
 
 MODULE 'dos/dos', 'exec/memory', '*/dunit/DUnit', '*/src/FormModel', '*/src/MForm',
        '*/src/Util', '*/src/Generator', '*/src/GenOut', '*/src/GenFiles', '*/src/UserFile', '*/src/Highlight'
+
+DEF only, hunt  -> the suite to run (0: all), or the letter of a hunt case, see readSelection
 
 /*** helpers ***/
 
@@ -428,56 +430,192 @@ PROC testBigGeneratedText()
   assertContains('xxxTHE-END', buf, 'complete, to its last character')
 ENDPROC
 
+-> Tests N runs only the Nth suite, and Tests N text only the tests of it whose name contains the text
+-> (to find which one a crash belongs to); Tests alone runs everything
+PROC readSelection()
+  DEF i, n
+  only := Val(arg)
+  IF (arg[0] >= "a") AND (arg[0] <= "z")
+    hunt := arg[0]
+    only := -1
+  ENDIF
+  n := StrLen(arg)
+  i := 0
+  WHILE (i < n) AND (arg[i] <> " ") DO i++
+  WHILE (i < n) AND (arg[i] = " ") DO i++
+  IF i < n
+    n := n - 1
+    WHILE (n > i) AND (arg[n] <= " ") DO n--
+    arg[n + 1] := 0
+    duOnly(arg + i)
+  ENDIF
+ENDPROC
+
+PROC want(n) IS (only = 0) OR (only = n)
+
+-> Tests a .. g: one small piece of what the generator does, then exit (to find what leaves a
+-> Software Failure on exit under the emulator's JIT):
+->   a  a growing text (sbNew, sbAdd, sbFree)       b  a file through the output buffer
+->   c  read a file and free it (after b)           d  collect the frames of a form
+->   e  generate the whole file (generateFile)      f  the user's file only (syncUserFile)
+->   g  the generated text without the user's file (it fills the RAM disk: delete RAM:dunit/Hunt3*)
+->   h  the stubs of the handlers (collectStubs)    i  the program header and main (genHeader, genMain)
+->   j  a quoted string (quoted)                    k  InStr on a growing text
+->   l  text from a growing buffer into a file    m  readAll of a file that is not there
+->   n  the two report variables (setOrphans, setOldLoop)
+PROC runHunt()
+  DEF sb: PTR TO strbuf, i, fh, buf, len, w, all, forms
+  makeTestDir()
+  SELECT hunt
+    CASE "a"
+      sb := sbNew()
+      FOR i := 1 TO 2000 DO sbAdd(sb, 'some text to make the buffer grow\n')
+      sbFree(sb)
+    CASE "b"
+      fh := Open('RAM:dunit/hunt.txt', MODE_NEWFILE)
+      IF fh
+        FOR i := 1 TO 3000 DO put(fh, 'a line of output for the buffer\n')
+        closeOut(fh)
+      ENDIF
+    CASE "c"
+      buf, len := readAll('RAM:dunit/hunt.txt')
+      IF buf THEN Dispose(buf)
+    CASE "d"
+      w := sampleForm()
+      forms := [w]
+      all := withFrames('RAM:dunit/Hunt.e', forms, 1)
+    CASE "e"
+      w := sampleForm()
+      generateFile('RAM:dunit/Hunt.e', w)
+    CASE "f"
+      w := sampleForm()
+      forms := [w]
+      syncUserFile('RAM:dunit/Hunt2.e', NIL, forms, 1)
+    CASE "h"
+      w := sampleForm()
+      sb := sbNew()
+      collectStubs(w, '', sb, w)
+      sbFree(sb)
+    CASE "i"
+      w := sampleForm()
+      fh := Open('RAM:dunit/Hunt4.e', MODE_NEWFILE)
+      IF fh
+        genHeader(fh, w)
+        genMain(fh, w)
+        closeOut(fh)
+      ENDIF
+    CASE "j"
+      fh := Open('RAM:dunit/Hunt5.txt', MODE_NEWFILE)
+      IF fh
+        quoted(fh, 'a name')
+        closeOut(fh)
+      ENDIF
+    CASE "k"
+      sb := sbNew()
+      sbAdd(sb, 'PROC one() OF tSample')
+      i := InStr(sb.buf, 'PROC two() OF tSample')
+      i := InStr(sb.buf, 'PROC one() OF tSample')
+      sbFree(sb)
+    CASE "l"
+      sb := sbNew()
+      sbAdd(sb, 'some text from a growing buffer\n')
+      fh := Open('RAM:dunit/Hunt6.txt', MODE_NEWFILE)
+      IF fh
+        put(fh, 'before\n')
+        putMem(fh, sb.buf, sb.len)
+        put(fh, 'after\n')
+        closeOut(fh)
+      ENDIF
+      sbFree(sb)
+    CASE "m"
+      buf, len := readAll('RAM:dunit/does-not-exist.e')
+    CASE "n"
+      setOrphans(NIL)
+      setOldLoop(FALSE)
+    CASE "g"
+      w := sampleForm()
+      forms := [w]
+      all := withFrames('RAM:dunit/Hunt3.e', forms, 1)
+      fh := openGenFile('RAM:dunit/Hunt3.gen.e')
+      IF fh
+        genRunRegion(fh, 'Hunt', forms, 1)
+        closeOut(fh)
+      ENDIF
+  ENDSELECT
+  WriteF('case \c done\n', hunt)
+ENDPROC
+
 PROC main()
-  duBegin('Limits')
-  duTest('a long title round trip', {testLongTitleRoundTrip})
-  duTest('a line that is too long', {testLineTooLong})
-  duTest('an unknown property', {testUnknownProperty})
-  duTest('many handlers', {testManyHandlers})
-  duTest('a text bigger than the output buffer', {testBigGeneratedText})
-  duEnd()
+  readSelection()
+  IF hunt
+    runHunt()
+    RETURN
+  ENDIF
+  IF want(1)
+    duBegin('Limits')
+    duTest('a long title round trip', {testLongTitleRoundTrip})
+    duTest('a line that is too long', {testLineTooLong})
+    duTest('an unknown property', {testUnknownProperty})
+    duTest('many handlers', {testManyHandlers})
+    duTest('a text bigger than the output buffer', {testBigGeneratedText})
+    duEnd()
+  ENDIF
 
-  duBegin('Language')
-  duTest('long E-strings', {testLongEString})
-  duEnd()
+  IF want(2)
+    duBegin('Language')
+    duTest('long E-strings', {testLongEString})
+    duEnd()
+  ENDIF
 
-  duBegin('FormModel')
-  duTest('kind names', {testKindNames})
-  duTest('the table of kinds', {testKindTable})
-  duTest('children', {testChildren})
-  duTest('cloneTree', {testCloneTree})
-  duTest('nthItem', {testNthItem})
-  duTest('which kinds may go where', {testParentRules})
-  duTest('root group and utilities', {testRootAndUtilities})
-  duEnd()
+  IF want(3)
+    duBegin('FormModel')
+    duTest('kind names', {testKindNames})
+    duTest('the table of kinds', {testKindTable})
+    duTest('children', {testChildren})
+    duTest('cloneTree', {testCloneTree})
+    duTest('nthItem', {testNthItem})
+    duTest('which kinds may go where', {testParentRules})
+    duTest('root group and utilities', {testRootAndUtilities})
+    duEnd()
+  ENDIF
 
-  duBegin('MForm')
-  duTest('write and read back', {testFormRoundTrip})
-  duTest('missing file', {testReadMissingFile})
-  duEnd()
+  IF want(4)
+    duBegin('MForm')
+    duTest('write and read back', {testFormRoundTrip})
+    duTest('missing file', {testReadMissingFile})
+    duEnd()
+  ENDIF
 
-  duBegin('Util')
-  duTest('validIdent', {testValidIdent})
-  duTest('paths', {testPaths})
-  duEnd()
+  IF want(5)
+    duBegin('Util')
+    duTest('validIdent', {testValidIdent})
+    duTest('paths', {testPaths})
+    duEnd()
+  ENDIF
 
-  duBegin('Highlight')
-  duTest('round trip', {testHighlightRoundTrip})
-  duTest('keyword', {testHighlightKeyword})
-  duTest('keyword inside a string', {testHighlightIgnoresKeywordInString})
-  duEnd()
+  IF want(6)
+    duBegin('Highlight')
+    duTest('round trip', {testHighlightRoundTrip})
+    duTest('keyword', {testHighlightKeyword})
+    duTest('keyword inside a string', {testHighlightIgnoresKeywordInString})
+    duEnd()
+  ENDIF
 
-  duBegin('UserFile')
-  duTest('split', {testSplitSections})
-  duTest('split without a marker', {testSplitNoMarker})
-  duTest('join', {testJoinSections})
-  duTest('module list', {testModuleList})
-  duEnd()
+  IF want(7)
+    duBegin('UserFile')
+    duTest('split', {testSplitSections})
+    duTest('split without a marker', {testSplitNoMarker})
+    duTest('join', {testJoinSections})
+    duTest('module list', {testModuleList})
+    duEnd()
+  ENDIF
 
-  duBegin('Generator')
-  duTest('generate a form', {testGenerate})
-  duTest('regenerate keeps user code', {testGenerateKeepsUserCode})
-  duEnd()
+  IF want(8)
+    duBegin('Generator')
+    duTest('generate a form', {testGenerate})
+    duTest('regenerate keeps user code', {testGenerateKeepsUserCode})
+    duEnd()
+  ENDIF
 
   IF duFinish() = FALSE THEN CleanUp(10)
 ENDPROC

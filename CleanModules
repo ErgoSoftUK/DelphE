@@ -1,4 +1,5 @@
-; Delete the compiled modules. ec and E-VO write modules in formats the other cannot read, so
-; run this when you switch compiler in the same folder:  execute CleanModules
-delete src/#?.m src/mcc/#?.m QUIET
+; Delete the compiled modules of DelphE, so that the next  execute BuildMake  builds them all again
+; (it must also be done after changing between the normal and the debug .build).
+; BuildMake CLEAN does this and builds.
+delete src/#?.m src/mcc/#?.m dunit/#?.m QUIET
 echo "modules deleted"

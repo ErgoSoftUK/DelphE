@@ -1,13 +1,5 @@
-; Compile and run only the tests, with ec. The modules must be up to date: Build does that.
-; Run from the DelphE drawer:  execute RunTests
-; The compiler output goes to tests.log, the test report to tests.out.
-echo "Compiling the tests.." > tests.log
-cd dunit
-ec DUnit >> /tests.log
-ec SelfTest >> /tests.log
-SelfTest > /tests.out
-cd /tests
-ec Tests ADDBUF 3 >> /tests.log
-Tests >> /tests.out
-cd /
+; Build DelphE and run the tests with E-VO (the tests are not run by a plain  execute BuildMake).
+; Run from the DelphE drawer, in a shell where  execute SetupEvo  has been run:  execute RunTests
+; The compiler output goes to build.out, the test report to tests.out (the smoke test to gentest.out).
+execute BuildMake runtests
 type tests.out

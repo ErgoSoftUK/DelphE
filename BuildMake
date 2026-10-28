@@ -1,0 +1,41 @@
+.key clean/s,target
+; Build DelphE with E-VO, using EBuild (the make clone of E 3.3a): only what changed is compiled again.
+; Run from the DelphE drawer, in a shell where  execute SetupEvo  has been run:
+;   execute BuildMake
+;   execute BuildMake CLEAN     deletes the compiled modules first, so everything is compiled again
+;   execute BuildMake runtests  builds, then runs the tests (RunTests does this); a plain BuildMake
+;                               only compiles them, so DelphE can be built where the tests crash
+; It shows one "Set target" line for each file it builds (a line each for the programs that are
+; run as checks too), and errors. The full EBuild output is kept in T:ebuild.log.
+; Do not use EBuild's FORCE: it compiles a shared module again every time another module needs
+; it, and that leaves the modules compiled before it in a format the compiler cannot read.
+; The rules are in .build, which tools/MakeBuild.pl writes from the MODULE lines of the sources
+; (run it on the PC after changing a MODULE line).
+; Put the EBuild program where it can be found, or change the path below.
+assign EVO: exists >NIL:
+if warn
+  echo "E-VO is not set up: run  execute SetupEvo  first"
+  quit 10
+endif
+echo "Building.." > build.out
+; E-VO needs the MUI modules in its own format: they are built from EVO:modules/libraries/mui.e
+; and muip.e, and only when they are not there yet (building them again would make every
+; module of DelphE unreadable)
+if not exists EVO:modules/libraries/mui.m
+  assign DELPHE: ""
+  cd EVO:modules/libraries
+  evo mui NOPROGRESS >> DELPHE:build.out
+  evo muip NOPROGRESS >> DELPHE:build.out
+  cd DELPHE:
+  assign DELPHE: remove
+endif
+if "<clean>" EQ "CLEAN"
+  execute CleanModules
+endif
+stack 40000
+XFer:E_v3.3a/Src/Utils/Build/build VERBOSE <target> > T:ebuild.log
+echo "Built:"
+search T:ebuild.log "Set target" NONUM
+search T:ebuild.log "Error" NONUM
+search T:ebuild.log "up to date" NONUM
+type build.out
